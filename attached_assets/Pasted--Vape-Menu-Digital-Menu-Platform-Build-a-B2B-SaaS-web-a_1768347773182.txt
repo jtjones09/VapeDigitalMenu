@@ -1,0 +1,536 @@
+# Vape Menu - Digital Menu Platform
+
+Build a B2B SaaS web application (Progressive Web App) where vape shop owners can create digital product menus for customers to browse on their phones (via QR code) or on in-store tablets (kiosk mode).
+
+## What It Does
+
+**For Shop Owners (Admin Portal):**
+- Sign in with 6-digit email OTP code (passwordless)
+- Browse 200+ pre-seeded vape products (e-liquids, disposables, hardware)
+- Add products to their shop's custom menu
+- Reorder products by drag-and-drop
+- Upload shop logo
+- Generate QR code for customer phones
+- Get kiosk mode URL for in-store tablets
+- View setup instructions for different devices
+
+**For End Customers (Menu Browsing):**
+- **Personal Mode (QR Code):** Scan QR code → log in with OTP → browse on phone → session persists
+- **Kiosk Mode (Tablet):** Pick up tablet → log in with OTP OR browse as guest → auto-logout after inactivity
+- Filter by category, nicotine level, flavor
+- View product details (brand, flavors, nicotine options, VG/PG ratio, sizes)
+- Save favorite products (if logged in)
+- Show staff what they want to purchase
+
+## Tech Stack
+- React + TypeScript frontend (Progressive Web App)
+- Replit's native PostgreSQL database (Neon) for data storage
+- Supabase Auth for OTP codes (shop owners AND customers)
+- Supabase Storage for product images and shop logos
+- Tailwind CSS for styling
+- PWA manifest + Service Worker for offline capability and installability
+- Tablet-optimized UI (1024x768 landscape minimum for kiosk mode)
+- Mobile-optimized UI (375px+ for personal mode)
+
+## Core Architecture: Two Operating Modes
+
+### **Personal Mode** (Customer's Phone via QR Code)
+**URL:** `vapemenu.app/menu/:shopId`
+
+**Behavior:**
+- Customer scans QR code at shop
+- Opens menu in their phone browser
+- Login required (OTP) for full features
+- Session persists (stays logged in)
+- Can save favorites
+- Can browse from anywhere after initial login
+
+### **Kiosk Mode** (Shop's Tablet/Computer)
+**URL:** `vapemenu.app/menu/:shopId?mode=kiosk`
+
+**Behavior:**
+- Device pre-loaded to this URL
+- Login required (OTP) OR "Browse as Guest" option
+- Session is temporary (auto-logout after 5 minutes of inactivity)
+- Shows "Staff Reset" button in corner
+- Fullscreen mode enforced
+- Browser chrome hidden (when installed as PWA)
+- Navigation away from page blocked
+
+**Mode Detection:**
+```javascript
+const isKioskMode = new URLSearchParams(window.location.search).get('mode') === 'kiosk';
+```
+
+## Database Schema
+
+**users table** (authentication - both shop owners and customers):
+- id, email, user_type (shop_owner / customer), created_at, updated_at
+
+**shop_owners table:**
+- id, user_id (FK), shop_name, owner_name, phone, address, city, state, zip, logo_url, is_onboarded, created_at, updated_at
+
+**customers table:**
+- id, user_id (FK), first_name, last_name, email, date_of_birth, is_age_verified, created_at, updated_at
+
+**brands table:**
+- id, brand_name, manufacturer, website, logo_url, created_at
+
+**products table:**
+- id, brand_id (FK), product_name, product_type (e-liquid/disposable/hardware), flavor_category (fruit/dessert/menthol/tobacco/beverage/candy/other), flavor_description, image_url, is_custom (boolean), created_by_shop_id (FK, nullable), created_at, updated_at
+
+**product_variants table:**
+- id, product_id (FK), nicotine_level (0mg/3mg/6mg/12mg/18mg), vg_pg_ratio (70/30, 50/50), bottle_size (30ml/60ml/100ml), sku, upc, msrp
+
+**shop_products table** (junction - shops select which products to show):
+- id, shop_id (FK), product_id (FK), display_order, is_active, custom_price, added_at
+
+**customer_favorites table** (new):
+- id, customer_id (FK), product_id (FK), shop_id (FK), created_at
+
+**sessions table** (new - track kiosk vs personal sessions):
+- id, user_id (FK, nullable for guest), shop_id (FK), session_mode (personal/kiosk), device_fingerprint, last_activity_at, expires_at (null for personal, 5min for kiosk), created_at
+
+**shops metadata (add to shop_owners table):**
+- qr_code_url (link to generated QR image)
+- kiosk_url (full URL with ?mode=kiosk)
+- kiosk_timeout_minutes (default 5, customizable)
+
+## Key Workflows
+
+### Shop Owner Onboarding (First-Time):
+1. Visit `/admin/login`, enter email
+2. Receive 6-digit code via email (~10-20 seconds)
+3. Enter code on `/admin/verify` (6 input boxes, auto-advance, auto-submit)
+4. First-time user redirected to `/admin/onboarding`
+5. Fill in: shop name, owner name, address, city, state, zip, phone
+6. Click "Complete Setup" → redirected to `/admin/products`
+7. Browse product catalog, search/filter
+8. Click "Add to My Menu" on 20-50 products
+9. Go to `/admin/my-menu` → drag-and-drop to reorder products
+10. Go to `/admin/setup` → see QR code and kiosk URL
+
+### Shop Owner - Generate QR Code:
+1. Navigate to `/admin/setup`
+2. See section: "QR Code for Customer Phones"
+3. QR code automatically generated (links to `/menu/:shopId`)
+4. Click "Download QR Code PDF" → downloads printable PDF with QR code + shop name
+5. Click "Download Table Tent Template" → downloads foldable table tent design
+6. Print and display at shop counter
+
+### Shop Owner - Setup Kiosk Mode:
+1. Navigate to `/admin/setup`
+2. See section: "Kiosk Mode for Tablets"
+3. See kiosk URL: `vapemenu.app/menu/:shopId?mode=kiosk`
+4. Click "Copy Kiosk URL" → copies to clipboard
+5. Click "Open Kiosk Mode" → opens in new browser tab
+6. Follow device-specific instructions:
+   - **iPad:** Enable Safari Guided Access (Settings → Accessibility)
+   - **Android:** Install "Kiosk Browser" app, open kiosk URL
+   - **Windows/Mac:** Open kiosk URL, click "Install App" (PWA), enable device kiosk mode
+7. Click "Install VapeMenu" button in browser (PWA install prompt)
+8. App installs to home screen/desktop
+9. Launch app → opens fullscreen automatically
+10. Device locked to kiosk URL
+
+### Customer Experience - Personal Mode (Phone via QR):
+1. Walk into vape shop
+2. See QR code on counter: "Scan to browse our menu"
+3. Scan with phone camera → opens `vapemenu.app/menu/:shopId`
+4. See login modal overlay on menu
+5. Tap "Sign In" → enter email
+6. Receive 6-digit code → enter code
+7. **If new user:**
+   - "Complete Your Profile" screen
+   - First name: [____]
+   - Last name: [____]
+   - Date of birth: [MM/DD/YYYY] (must be 18+)
+   - Tap "Continue"
+   - Age verification: System checks DOB >= 18 years
+   - If under 18: "Sorry, you must be 18+ to use this service" → blocked
+   - If 18+: "Welcome! Start browsing"
+8. **If returning user:** Immediately see menu (already logged in)
+9. Browse products, tap to see details
+10. Tap heart icon to favorite products
+11. Show phone to staff: "I want this one in 6mg nicotine"
+12. Staff rings up purchase
+
+### Customer Experience - Kiosk Mode (Shop Tablet):
+1. Walk into vape shop, pick up tablet from counter
+2. Tablet already open to `vapemenu.app/menu/:shopId?mode=kiosk`
+3. See login options:
+   - [Log In with Email] (OTP flow, same as above)
+   - [Browse as Guest] (limited features, no favorites)
+4. If guest: Browse immediately, no age verification (assumed staff checks in person)
+5. If logged in: Full features, can favorite products
+6. Inactivity timer visible at bottom: "Auto-logout in 3m 45s"
+7. If idle for 5 minutes → auto-logout → back to login screen
+8. **Staff Reset:** Staff taps small "Staff Reset 🔒" button in bottom corner
+   - Confirmation: "Log out current customer? [Cancel] [Yes, Reset]"
+   - If yes → session cleared → back to login screen
+
+### Customer Return Visit (Different Shop):
+1. Customer walks into Shop B
+2. Scans Shop B's QR code (or uses Shop B's tablet)
+3. Already logged in (same account across all shops)
+4. Shop B's menu loads
+5. Can favorite different products at Shop B
+6. Favorites are tracked per-shop
+
+## Pages & Routes
+
+### Admin Portal (Shop Owners):
+- `/admin/login` - Email entry
+- `/admin/verify` - 6-digit OTP code entry
+- `/admin/onboarding` - First-time shop setup form
+- `/admin/dashboard` - Overview stats (total products, favorites count, recent activity)
+- `/admin/products` - Browse global catalog with search/filters
+- `/admin/my-menu` - Manage shop's selected products (drag-drop reorder, toggle active)
+- `/admin/setup` - QR code generator + kiosk mode instructions
+- `/admin/settings` - Shop info, logo upload, account settings
+
+### Customer Menu (Two Modes):
+- `/menu/:shopId` - Personal mode (from QR code)
+- `/menu/:shopId?mode=kiosk` - Kiosk mode (shop tablets)
+- `/menu/:shopId/product/:productId` - Product detail view (works in both modes)
+
+## PWA Requirements (Progressive Web App)
+
+### **Manifest.json:**
+```json
+{
+  "name": "VapeMenu",
+  "short_name": "VapeMenu",
+  "description": "Digital menu for vape shops",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#6366f1",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
+```
+
+### **Service Worker:**
+- Cache menu pages for offline browsing
+- Cache product images
+- Cache API responses (product catalog)
+- Update strategy: Cache-first for static assets, network-first for dynamic data
+- Show offline indicator when no connection
+
+### **Install Prompt:**
+- Show "Install VapeMenu" button in kiosk mode
+- Browser triggers native install prompt (iOS Safari, Chrome, Edge)
+- After install: App opens in standalone mode (no browser chrome)
+
+### **Offline Capability:**
+- Menu loads even without internet
+- Product data cached locally
+- Show "Offline Mode" banner
+- API calls queue and sync when online
+
+## UI/UX Requirements
+
+### Kiosk Mode Specific UI:
+
+**Header in Kiosk Mode:**
+```
+┌──────────────────────────────────────────┐
+│ 🏪 Shop Name          [KIOSK MODE] 🖥️   │
+└──────────────────────────────────────────┘
+```
+
+**Login Screen in Kiosk Mode:**
+```
+┌──────────────────────────────────────────┐
+│         Welcome to [Shop Name]!          │
+│                                          │
+│      ┌────────────────────────────┐     │
+│      │   Log In with Email   📧   │     │
+│      └────────────────────────────┘     │
+│                                          │
+│      ┌────────────────────────────┐     │
+│      │   Browse as Guest   👤     │     │
+│      └────────────────────────────┘     │
+│                                          │
+│   Must be 18+ to purchase tobacco       │
+└──────────────────────────────────────────┘
+```
+
+**Footer in Kiosk Mode:**
+```
+┌──────────────────────────────────────────┐
+│ Auto-logout in: 4m 23s                   │
+│                      [Staff Reset] 🔒    │
+└──────────────────────────────────────────┘
+```
+
+**Staff Reset Confirmation:**
+```
+┌──────────────────────────────────────────┐
+│         Log Out Current Customer?        │
+│                                          │
+│   This will clear the session and        │
+│   return to the login screen.            │
+│                                          │
+│      [Cancel]      [Yes, Reset]          │
+└──────────────────────────────────────────┘
+```
+
+### Personal Mode Specific UI:
+
+**Mobile-optimized (375px+)**
+- Single column layout
+- Larger tap targets (48px minimum)
+- Bottom navigation bar
+- Pull-to-refresh
+- Swipe gestures for product browsing
+
+### Shared UI (Both Modes):
+
+**OTP Input Component:**
+- 6 separate input boxes
+- Auto-focus first box
+- Auto-advance on digit entry
+- Backspace goes to previous box
+- Paste full code auto-distributes
+- Large font (32px)
+- Auto-submit when complete
+
+**Product Cards:**
+- Product image (square, 1:1 ratio)
+- Brand name (small, gray)
+- Product name (bold, large)
+- Flavor category badge
+- Heart icon for favorites (filled if favorited)
+- Tap card → detail view
+
+**Product Detail View:**
+- Large product image (hero)
+- Brand + product name
+- Flavor description (2-3 sentences)
+- Available variants:
+  - Nicotine levels (chips: 0mg, 3mg, 6mg, etc.)
+  - VG/PG ratios (70/30, 50/50)
+  - Bottle sizes (30ml, 60ml, 100ml)
+- Favorite button (heart icon)
+- Back button (large, top-left)
+
+**Kiosk Mode Behaviors:**
+- Fullscreen mode (F11 or Fullscreen API)
+- Disable right-click
+- Disable keyboard shortcuts (Ctrl+T, Ctrl+W, Cmd+Q)
+- Hide browser chrome (when installed as PWA)
+- Inactivity timeout: 5 minutes (customizable per shop)
+- Visual countdown timer
+- Staff reset button: bottom-right corner, requires confirmation
+
+**Personal Mode Behaviors:**
+- Normal browser mode
+- Session persists indefinitely
+- No inactivity timeout
+- No staff reset button
+- Can navigate away and come back
+
+## Admin Portal - Setup Page Details
+
+**Section 1: QR Code for Customer Phones**
+```
+┌─────────────────────────────────────────────┐
+│  📱 QR Code for Customer Phones             │
+├─────────────────────────────────────────────┤
+│                                             │
+│    [QR CODE IMAGE]                          │
+│    vapemenu.app/menu/abc-123                │
+│                                             │
+│    [Download QR Code PDF]                   │
+│    [Download Table Tent Template]          │
+│                                             │
+│    Print and place this QR code where       │
+│    customers can easily scan it.            │
+│                                             │
+│    💡 Tip: Table tents work great on        │
+│    counters. Wall posters work for          │
+│    waiting areas.                           │
+└─────────────────────────────────────────────┘
+```
+
+**Section 2: Kiosk Mode Setup**
+```
+┌─────────────────────────────────────────────┐
+│  🖥️ Kiosk Mode for In-Store Tablets         │
+├─────────────────────────────────────────────┤
+│                                             │
+│  Kiosk URL:                                 │
+│  vapemenu.app/menu/abc-123?mode=kiosk       │
+│                                             │
+│  [Copy URL]  [Open in New Tab]              │
+│                                             │
+│  ━━━ Setup Instructions ━━━                 │
+│                                             │
+│  ▸ iPad (iOS) - Tap to expand               │
+│    1. Open Safari to kiosk URL              │
+│    2. Tap "Install VapeMenu"                │
+│    3. Go to Settings → Accessibility        │
+│    4. Enable Guided Access                  │
+│    5. Triple-click home button to lock      │
+│                                             │
+│  ▸ Android Tablet - Tap to expand           │
+│    1. Install "Kiosk Browser" (free)        │
+│    2. Open kiosk URL in Kiosk Browser       │
+│    3. Enable kiosk mode in app settings     │
+│                                             │
+│  ▸ Windows/Mac Computer - Tap to expand     │
+│    1. Open Chrome/Edge to kiosk URL         │
+│    2. Click "Install VapeMenu"              │
+│    3. Launch installed app                  │
+│    4. Press F11 for fullscreen              │
+│                                             │
+│  Settings:                                  │
+│  Auto-logout timer: [5] minutes             │
+│  [Save Settings]                            │
+└─────────────────────────────────────────────┘
+```
+
+## Seed Data Requirements
+
+**25 Popular Vape Brands:**
+Naked, Juice Head, Coastal Clouds, Cloud Nurdz, Twist, Jam Monster, Vapetasia, Aqua, Skwezed, Fume, Glas, Vaporesso, SMOK, Reds, Beard Vape Co, Humble, Elf Bar, Puff Bar, Lost Mary, Geek Bar, MRKT PLCE, Hi Drip, Funky Republic, Sadboy, Cuttwood
+
+**200 Products Across Categories:**
+
+**E-Liquids (120 products):**
+- 20 Fruit (strawberry, mango, watermelon, peach, apple, grape, etc.)
+- 20 Dessert (vanilla custard, cookies, cake, donut, cinnamon roll, etc.)
+- 20 Menthol (mint, ice, cool blends, arctic, freeze, etc.)
+- 20 Tobacco (classic, RY4, virginia, cuban, etc.)
+- 20 Beverage (lemonade, coffee, cola, tea, energy drink, etc.)
+- 20 Candy (gummy, sour, sweet tart, skittles-like, nerds-like, etc.)
+
+**Disposables (50 products):**
+- Various brands (Elf Bar, Puff Bar, Lost Mary, Geek Bar, Fume)
+- 2000-5000 puff counts
+- Multiple flavors
+- Nicotine strengths: 0%, 2%, 5%
+
+**Hardware (30 products):**
+- 10 Mods (box mods, pod mods, vape pens)
+- 10 Tanks (sub-ohm tanks, MTL tanks, RDAs)
+- 10 Coils (various resistances and types)
+
+**Each E-Liquid Product Should Have 3-4 Variants:**
+- Nicotine: 0mg, 3mg, 6mg, 12mg (some also 18mg)
+- VG/PG: 70/30, 50/50 (some also 80/20)
+- Size: 30ml, 60ml, 100ml (some also 120ml)
+
+## MVP Scope - What NOT to Build Yet
+
+**Explicitly out of scope:**
+- Shopping cart or checkout (customers ask staff to ring up)
+- Payment processing (no Stripe/PayPal integration)
+- Inventory management or stock tracking
+- Multi-location support for chains (one shop = one owner account)
+- Customer wishlist sharing or social features
+- Product reviews or ratings
+- Email marketing or newsletters (beyond auth OTP)
+- SMS/text OTP (email only)
+- Advanced analytics dashboard (basic stats only)
+- Integration with POS systems
+- Barcode scanning
+- Native mobile apps (PWA only)
+- Admin mobile app (admin is desktop/laptop optimized)
+- Price display on products (prices vary, not shown)
+- Loyalty points or rewards program
+- Referral program
+- Promotional campaigns
+- Age verification via ID scanning (DOB entry only)
+- Real-time chat support
+
+## Success Criteria
+
+**Authentication & Onboarding:**
+- Shop owner receives OTP code in < 20 seconds
+- Code entry is smooth with 6-box auto-advance
+- Shop owner completes login in < 45 seconds total
+- First-time onboarding form completes in < 2 minutes
+- Customer login (phone) completes in < 30 seconds
+- Customer age verification works correctly (blocks under 18)
+
+**Menu Building (Shop Owner):**
+- Can search/filter 200 products easily
+- Can add 30 products to menu in < 10 minutes
+- Drag-and-drop reordering is intuitive and saves properly
+- Products display in correct order on customer menu
+
+**QR Code & Kiosk Setup:**
+- QR code generates automatically when shop created
+- QR code downloads as clean, printable PDF
+- Kiosk URL copies to clipboard correctly
+- PWA install prompt appears in kiosk mode
+- Kiosk mode detects URL parameter correctly
+
+**Customer Experience (Personal Mode - Phone):**
+- QR code scan opens menu immediately
+- Login modal appears correctly
+- Menu is mobile-responsive (works on phones 375px+)
+- Product images load quickly (< 2 seconds)
+- Favorites save and persist across sessions
+- Can browse from anywhere after initial login
+
+**Customer Experience (Kiosk Mode - Tablet):**
+- Kiosk mode activates via URL parameter
+- "Browse as Guest" option works
+- Logged-in customers can favorite
+- Inactivity timer counts down visibly
+- Auto-logout triggers after 5 minutes idle
+- Staff reset button works (clears session)
+- Fullscreen mode enforces (when PWA installed)
+
+**PWA Functionality:**
+- Manifest.json configures correctly
+- Install prompt appears on supported browsers
+- App installs to home screen/desktop
+- Opens in standalone mode (no browser chrome)
+- Service worker caches menu for offline use
+- Offline indicator shows when no connection
+
+**Performance:**
+- Menu loads in < 3 seconds (initial)
+- Menu loads in < 1 second (cached/offline)
+- Product detail opens instantly
+- Database queries < 500ms
+- No UI jank or lag on scrolling
+- Works smoothly on iPad, Android tablets, phones
+
+**Overall Quality:**
+- Clean, professional UI
+- No authentication errors
+- Sessions managed correctly (personal vs kiosk)
+- Product catalog fully seeded
+- All images display properly
+- Mode detection works 100% of time
+
+---
+
+**Build this step-by-step:**
+
+1. **Foundation:** Authentication system (Supabase OTP for shop owners and customers)
+2. **Admin Portal:** Onboarding form, product browsing, menu management
+3. **Seed Data:** Populate 25 brands + 200 products with variants
+4. **Customer Menu:** Basic browsing (personal mode first)
+5. **Mode Detection:** Add `?mode=kiosk` parameter detection
+6. **Kiosk Features:** Staff reset, inactivity timeout, browse as guest
+7. **PWA:** Manifest, service worker, install prompt, offline caching
+8. **QR Generator:** Admin page to generate/download QR codes
+9. **Polish:** Drag-and-drop, favorites, responsive design, error handling
+10. **Testing:** Test on actual phones, tablets (iOS/Android), kiosk mode
