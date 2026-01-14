@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Store, ArrowRight, Loader2, ArrowLeft } from "lucide-react";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
@@ -14,8 +15,12 @@ interface SignupData {
   email: string;
   ownerName: string;
   shopName: string;
+  phone: string;
+  address: string;
   city: string;
   state: string;
+  zip: string;
+  agreedToTerms: boolean;
 }
 
 export default function SignupPage() {
@@ -29,8 +34,12 @@ export default function SignupPage() {
     email: "",
     ownerName: "",
     shopName: "",
+    phone: "",
+    address: "",
     city: "",
     state: "",
+    zip: "",
+    agreedToTerms: false,
   });
 
   const handleInputChange = (field: keyof SignupData) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -44,6 +53,15 @@ export default function SignupPage() {
       toast({
         title: "Missing information",
         description: "Please fill in all required fields.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.agreedToTerms) {
+      toast({
+        title: "Terms required",
+        description: "Please agree to the Terms and Conditions to continue.",
         variant: "destructive",
       });
       return;
@@ -100,8 +118,11 @@ export default function SignupPage() {
       const shopData = {
         shopName: formData.shopName,
         ownerName: formData.ownerName,
+        phone: formData.phone,
+        address: formData.address,
         city: formData.city,
         state: formData.state,
+        zip: formData.zip,
       };
 
       await apiRequest("POST", "/api/shops", shopData, accessToken);
@@ -229,8 +250,34 @@ export default function SignupPage() {
                   data-testid="input-shop-name"
                 />
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone number</Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  placeholder="(555) 123-4567"
+                  value={formData.phone}
+                  onChange={handleInputChange("phone")}
+                  disabled={isLoading}
+                  data-testid="input-phone"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="address">Street address</Label>
+                <Input
+                  id="address"
+                  type="text"
+                  placeholder="123 Main Street"
+                  value={formData.address}
+                  onChange={handleInputChange("address")}
+                  disabled={isLoading}
+                  data-testid="input-address"
+                />
+              </div>
               
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="city">City</Label>
                   <Input
@@ -255,6 +302,33 @@ export default function SignupPage() {
                     data-testid="input-state"
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="zip">ZIP Code</Label>
+                  <Input
+                    id="zip"
+                    type="text"
+                    placeholder="90001"
+                    value={formData.zip}
+                    onChange={handleInputChange("zip")}
+                    disabled={isLoading}
+                    data-testid="input-zip"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-3 pt-2">
+                <Checkbox
+                  id="terms"
+                  checked={formData.agreedToTerms}
+                  onCheckedChange={(checked) => 
+                    setFormData(prev => ({ ...prev, agreedToTerms: checked === true }))
+                  }
+                  disabled={isLoading}
+                  data-testid="checkbox-terms"
+                />
+                <Label htmlFor="terms" className="text-sm leading-relaxed cursor-pointer">
+                  I agree to the <a href="#" className="text-primary hover:underline">Terms and Conditions</a> *
+                </Label>
               </div>
 
               <Button type="submit" className="w-full" disabled={isLoading} data-testid="button-create-account">
