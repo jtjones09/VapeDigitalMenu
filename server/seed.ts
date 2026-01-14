@@ -388,13 +388,15 @@ export async function seedDatabase() {
   }
 }
 
-// Run seed when executed directly
-seedDatabase()
-  .then(() => {
-    console.log("Seed script finished");
-    process.exit(0);
-  })
-  .catch((error) => {
-    console.error("Seed script failed:", error);
-    process.exit(1);
-  });
+// Run seed when executed directly (not when imported)
+if (process.argv[1]?.includes("seed")) {
+  seedDatabase()
+    .then(() => {
+      console.log("Seed script finished");
+      process.exit(0);
+    })
+    .catch((error) => {
+      console.error("Seed script failed:", error);
+      process.exit(1);
+    });
+}
