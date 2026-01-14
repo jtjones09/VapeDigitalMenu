@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { supabase } from "@/lib/supabase";
+import { queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -53,7 +54,7 @@ export default function LoginPage() {
 
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.verifyOtp({
+      const { error, data } = await supabase.auth.verifyOtp({
         email,
         token: code,
         type: "email",
@@ -61,11 +62,18 @@ export default function LoginPage() {
 
       if (error) throw error;
 
+      // Clear any cached queries so they refetch with the new auth token
+      await queryClient.invalidateQueries();
+
       toast({
         title: "Welcome!",
         description: "You've successfully signed in.",
       });
-      setLocation("/admin");
+      
+      // Small delay to ensure auth state is propagated
+      setTimeout(() => {
+        setLocation("/admin");
+      }, 100);
     } catch (error: any) {
       toast({
         title: "Invalid code",
