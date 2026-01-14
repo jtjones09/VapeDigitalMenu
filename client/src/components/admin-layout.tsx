@@ -14,8 +14,7 @@ import {
   SidebarTrigger,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
@@ -48,8 +47,13 @@ interface AdminLayoutProps {
 }
 
 export function AdminLayout({ children }: AdminLayoutProps) {
-  const { user, isLoading, logout } = useAuth();
-  const [location] = useLocation();
+  const { user, isLoading, signOut } = useAuth();
+  const [location, setLocation] = useLocation();
+
+  const handleLogout = async () => {
+    await signOut();
+    setLocation("/");
+  };
 
   const style = {
     "--sidebar-width": "16rem",
@@ -104,14 +108,13 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                 <DropdownMenuTrigger asChild>
                   <button className="flex items-center gap-3 w-full p-2 rounded-md hover-elevate" data-testid="button-user-menu">
                     <Avatar className="w-9 h-9">
-                      <AvatarImage src={user.profileImageUrl || undefined} alt={user.firstName || "User"} />
                       <AvatarFallback>
-                        {user.firstName?.[0] || user.email?.[0]?.toUpperCase() || "U"}
+                        {user.email?.[0]?.toUpperCase() || "U"}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 text-left min-w-0">
                       <p className="text-sm font-medium truncate">
-                        {user.firstName ? `${user.firstName} ${user.lastName || ""}`.trim() : "User"}
+                        {user.email?.split("@")[0] || "User"}
                       </p>
                       <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                     </div>
@@ -126,11 +129,9 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <a href="/api/logout" className="cursor-pointer text-destructive" data-testid="menu-logout">
-                      <LogOut className="w-4 h-4 mr-2" />
-                      Log Out
-                    </a>
+                  <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-destructive" data-testid="menu-logout">
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Log Out
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

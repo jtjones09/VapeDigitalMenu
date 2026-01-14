@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useParams, useSearch, Link } from "wouter";
+import { useParams, useSearch, Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -50,7 +50,8 @@ export default function Menu() {
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading, signOut } = useAuth();
+  const [, setLocation] = useLocation();
   
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -130,7 +131,7 @@ export default function Menu() {
       setRemainingTime(remaining);
 
       if (remaining === 0 && isAuthenticated) {
-        window.location.href = "/api/logout";
+        signOut().then(() => setLocation("/"));
       }
     }, 1000);
 
@@ -383,8 +384,14 @@ export default function Menu() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel data-testid="button-cancel-reset">Cancel</AlertDialogCancel>
-            <AlertDialogAction asChild>
-              <a href="/api/logout" data-testid="button-confirm-reset">Yes, Reset</a>
+            <AlertDialogAction 
+              onClick={async () => {
+                await signOut();
+                setLocation("/");
+              }}
+              data-testid="button-confirm-reset"
+            >
+              Yes, Reset
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
