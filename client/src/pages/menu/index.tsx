@@ -308,10 +308,10 @@ export default function Menu() {
               </div>
             ) : (
               <Button variant="outline" size="sm" asChild data-testid="button-login">
-                <a href="/api/login">
+                <Link href={`/customer-login?redirect=/menu/${params.shopId}${isKioskMode ? '?mode=kiosk' : ''}`}>
                   <LogIn className="w-4 h-4 mr-2" />
                   Log In
-                </a>
+                </Link>
               </Button>
             )}
           </div>
