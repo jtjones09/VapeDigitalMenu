@@ -164,6 +164,13 @@ const demoData = {
     { productName: "Chocolate Chip Cookie", productType: "e-liquid", flavorCategory: "dessert", flavorDescription: "Fresh-baked chocolate chip cookie", brandIndex: 8 },
     { productName: "Boston Cream", productType: "e-liquid", flavorCategory: "dessert", flavorDescription: "Vanilla custard with chocolate glaze", brandIndex: 9 },
 
+    // ==================== E-LIQUIDS - ADDITIONAL TO REACH 120 (5 products) ====================
+    { productName: "Butterscotch Pudding", productType: "e-liquid", flavorCategory: "dessert", flavorDescription: "Rich creamy butterscotch pudding with caramel swirls", brandIndex: 4 },
+    { productName: "Arnold Palmer", productType: "e-liquid", flavorCategory: "beverage", flavorDescription: "Classic iced tea and lemonade refresher blend", brandIndex: 7 },
+    { productName: "Horchata", productType: "e-liquid", flavorCategory: "beverage", flavorDescription: "Traditional Mexican rice milk with cinnamon and vanilla", brandIndex: 6 },
+    { productName: "Glazed Donut", productType: "e-liquid", flavorCategory: "dessert", flavorDescription: "Warm glazed donut with sweet icing", brandIndex: 2 },
+    { productName: "Ginger Ale", productType: "e-liquid", flavorCategory: "beverage", flavorDescription: "Crisp ginger ale with subtle spice notes", brandIndex: 5 },
+
     // ==================== DISPOSABLES (50 products) ====================
     // Elf Bar (10)
     { productName: "Elf Bar BC5000 Strawberry Mango", productType: "disposable", flavorCategory: "fruit", flavorDescription: "Sweet strawberry and tropical mango blend, 5000 puffs", brandIndex: 10 },
@@ -380,3 +387,14 @@ export async function seedDatabase() {
     throw error;
   }
 }
+
+// Run seed when executed directly
+seedDatabase()
+  .then(() => {
+    console.log("Seed script finished");
+    process.exit(0);
+  })
+  .catch((error) => {
+    console.error("Seed script failed:", error);
+    process.exit(1);
+  });
