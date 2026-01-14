@@ -192,16 +192,14 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted flex items-center justify-center p-4">
-      <div className="absolute top-4 left-4">
-        <Button variant="ghost" size="sm" asChild data-testid="button-back-home">
+      <Card className="w-full max-w-md relative">
+        <Button variant="ghost" size="sm" className="absolute top-4 left-4" asChild data-testid="button-back-home">
           <Link href="/">
-            <Home className="w-4 h-4 mr-2" />
+            <Home className="w-4 h-4 mr-1" />
             Home
           </Link>
         </Button>
-      </div>
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center space-y-2">
+        <CardHeader className="text-center space-y-2 pt-12">
           <div className="w-16 h-16 rounded-2xl bg-primary mx-auto flex items-center justify-center mb-2">
             <Store className="w-8 h-8 text-primary-foreground" />
           </div>
