@@ -37,6 +37,8 @@ import {
   User,
   Lock,
   Timer,
+  Maximize,
+  Minimize,
 } from "lucide-react";
 import type { Shop, ProductWithBrand, CustomerFavorite } from "@shared/schema";
 
@@ -121,41 +123,36 @@ export default function Menu() {
     };
   }, [isKioskMode, shop?.kioskTimeoutMinutes, resetActivity]);
 
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const enterFullscreen = useCallback(async () => {
+    try {
+      const elem = document.documentElement;
+      if (elem.requestFullscreen) {
+        await elem.requestFullscreen();
+      } else if ((elem as any).webkitRequestFullscreen) {
+        await (elem as any).webkitRequestFullscreen();
+      } else if ((elem as any).msRequestFullscreen) {
+        await (elem as any).msRequestFullscreen();
+      }
+    } catch (err) {
+      console.error('Failed to enter fullscreen:', err);
+    }
+  }, []);
+
   useEffect(() => {
-    if (!isKioskMode) return;
-
-    const enterFullscreen = async () => {
-      try {
-        const elem = document.documentElement;
-        if (elem.requestFullscreen) {
-          await elem.requestFullscreen();
-        } else if ((elem as any).webkitRequestFullscreen) {
-          await (elem as any).webkitRequestFullscreen();
-        } else if ((elem as any).msRequestFullscreen) {
-          await (elem as any).msRequestFullscreen();
-        }
-      } catch (err) {
-        console.error('Failed to enter fullscreen:', err);
-      }
-    };
-
-    const timeout = setTimeout(enterFullscreen, 1000);
-
     const handleFullscreenChange = () => {
-      if (!document.fullscreenElement && isKioskMode) {
-        setTimeout(enterFullscreen, 1000);
-      }
+      setIsFullscreen(!!document.fullscreenElement);
     };
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 
     return () => {
-      clearTimeout(timeout);
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
       document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
     };
-  }, [isKioskMode]);
+  }, []);
 
   useEffect(() => {
     if (!isKioskMode || !shop?.kioskTimeoutMinutes) return;
@@ -390,22 +387,35 @@ export default function Menu() {
 
       {isKioskMode && (
         <footer className="fixed bottom-0 left-0 right-0 bg-background border-t border-border px-4 py-3">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Timer className="w-4 h-4" />
               {remainingTime !== null && (
                 <span>Auto-logout in: {formatTime(remainingTime)}</span>
               )}
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowResetDialog(true)}
-              data-testid="button-staff-reset"
-            >
-              <Lock className="w-4 h-4 mr-2" />
-              Staff Reset
-            </Button>
+            <div className="flex items-center gap-2">
+              {!isFullscreen && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={enterFullscreen}
+                  data-testid="button-fullscreen"
+                >
+                  <Maximize className="w-4 h-4 mr-2" />
+                  Fullscreen
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowResetDialog(true)}
+                data-testid="button-staff-reset"
+              >
+                <Lock className="w-4 h-4 mr-2" />
+                Staff Reset
+              </Button>
+            </div>
           </div>
         </footer>
       )}
