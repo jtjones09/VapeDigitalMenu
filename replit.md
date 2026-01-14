@@ -22,8 +22,8 @@ Preferred communication style: Simple, everyday language.
 - **Runtime**: Node.js with Express.js
 - **Language**: TypeScript with ESM modules
 - **API Design**: RESTful API endpoints under `/api/*` prefix
-- **Authentication**: Replit Auth integration using OpenID Connect (OIDC) with Passport.js
-- **Session Management**: PostgreSQL-backed sessions using connect-pg-simple
+- **Authentication**: Supabase OTP (email verification codes)
+- **Session Management**: Supabase JWT tokens validated via service role key
 
 ### Data Storage
 - **Database**: PostgreSQL
@@ -40,10 +40,11 @@ Preferred communication style: Simple, everyday language.
 - **CustomerFavorites**: Customer product favorites per shop
 
 ### Authentication Flow
-- Replit Auth handles user authentication via OIDC
-- Sessions stored in PostgreSQL with 1-week TTL
-- Protected routes use `isAuthenticated` middleware
-- User data synced on login via `upsertUser`
+- Supabase handles user authentication via OTP (email codes)
+- New users: Sign up page collects email, owner name, shop name, location → sends OTP → verify → creates shop
+- Returning users: Login page collects email → sends OTP → verify → redirects to dashboard
+- JWT tokens sent in Authorization header for all API requests
+- Protected routes use `isAuthenticated` middleware (validates JWT via Supabase)
 
 ### Build System
 - Development: Vite dev server with HMR proxied through Express
@@ -72,8 +73,9 @@ shared/           # Shared code between client and server
 - Uses Drizzle ORM for type-safe queries and migrations
 
 ### Authentication
-- **Replit Auth**: OIDC-based authentication
-- Requires `ISSUER_URL`, `REPL_ID`, and `SESSION_SECRET` environment variables
+- **Supabase**: Email OTP authentication
+- Requires `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (frontend)
+- Requires `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (backend)
 
 ### UI Libraries
 - **Radix UI**: Headless component primitives
