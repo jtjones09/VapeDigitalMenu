@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, getAuthHeaders } from "@/lib/queryClient";
+import { AgeVerificationModal } from "@/components/age-verification-modal";
 import {
   Select,
   SelectContent,
@@ -40,7 +41,7 @@ import {
   Maximize,
   Minimize,
 } from "lucide-react";
-import type { Shop, ProductWithBrand, CustomerFavorite } from "@shared/schema";
+import type { Shop, ProductWithBrand, CustomerFavorite, Customer } from "@shared/schema";
 
 const flavorCategories = ["all", "fruit", "dessert", "menthol", "tobacco", "beverage", "candy", "other"];
 const productTypes = ["all", "e-liquid", "disposable", "hardware", "accessory"];
@@ -61,6 +62,7 @@ export default function Menu() {
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [remainingTime, setRemainingTime] = useState<number | null>(null);
   const [lastActivity, setLastActivity] = useState(Date.now());
+  const [showAgeVerification, setShowAgeVerification] = useState(false);
 
   const { data: shop, isLoading: shopLoading } = useQuery<Shop>({
     queryKey: ["/api/shops", params.shopId],
@@ -85,6 +87,55 @@ export default function Menu() {
     queryKey: ["/api/customers/favorites", params.shopId],
     enabled: isAuthenticated && !!params.shopId,
   });
+
+  // Check if user is a shop owner (shop owners skip age verification)
+  const { data: shopOwnerStatus, isLoading: shopOwnerLoading } = useQuery<{ isShopOwner: boolean } | null>({
+    queryKey: ["/api/auth/is-shop-owner"],
+    enabled: isAuthenticated && !isKioskMode,
+    retry: false,
+    queryFn: async () => {
+      const authHeaders = await getAuthHeaders();
+      const res = await fetch("/api/auth/is-shop-owner", {
+        headers: authHeaders,
+        credentials: "include",
+      });
+      if (!res.ok) {
+        return null;
+      }
+      return res.json();
+    },
+  });
+
+  // Check if customer profile exists and is age verified
+  const { data: customer, isLoading: customerLoading } = useQuery<Customer | null>({
+    queryKey: ["/api/customers/me"],
+    enabled: isAuthenticated && !isKioskMode && shopOwnerStatus?.isShopOwner === false,
+    retry: false,
+    queryFn: async () => {
+      const authHeaders = await getAuthHeaders();
+      const res = await fetch("/api/customers/me", {
+        headers: authHeaders,
+        credentials: "include",
+      });
+      if (res.status === 404) {
+        return null;
+      }
+      if (!res.ok) {
+        throw new Error(`${res.status}: ${await res.text()}`);
+      }
+      return res.json();
+    },
+  });
+
+  // Determine if we need to show age verification (only for non-shop-owners)
+  const isShopOwner = shopOwnerStatus?.isShopOwner === true;
+  const needsAgeVerification = isAuthenticated && !isKioskMode && !shopOwnerLoading && !isShopOwner && !customerLoading && !customer?.isAgeVerified;
+
+  useEffect(() => {
+    if (needsAgeVerification && !authLoading) {
+      setShowAgeVerification(true);
+    }
+  }, [needsAgeVerification, authLoading]);
 
   const favoriteIds = new Set(favorites?.map(f => f.productId) || []);
 
@@ -186,6 +237,18 @@ export default function Menu() {
     candy: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
     other: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300",
   };
+
+  // Show age verification modal if needed
+  if (showAgeVerification) {
+    return (
+      <div className="min-h-screen bg-background">
+        <AgeVerificationModal
+          open={showAgeVerification}
+          onSuccess={() => setShowAgeVerification(false)}
+        />
+      </div>
+    );
+  }
 
   if (shopLoading) {
     return (

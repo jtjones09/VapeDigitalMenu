@@ -2,8 +2,10 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { isAuthenticated, type AuthenticatedRequest } from "./auth/supabase";
-import { insertShopSchema, insertShopProductSchema, insertCustomerFavoriteSchema } from "@shared/schema";
+import { insertShopSchema, insertShopProductSchema, insertCustomerFavoriteSchema, customers } from "@shared/schema";
 import { z } from "zod";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -319,6 +321,153 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // Check if current user is a shop owner
+  app.get("/api/auth/is-shop-owner", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.userId!;
+      const shop = await storage.getShopByUserId(userId);
+      res.json({ isShopOwner: !!shop });
+    } catch (error) {
+      console.error("Error checking shop owner:", error);
+      res.status(500).json({ message: "Failed to check shop owner status" });
+    }
+  });
+
+  // ============ CUSTOMER PROFILE & AGE VERIFICATION ============
+
+  // Get current customer profile
+  app.get("/api/customers/me", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.userId!;
+      
+      const customer = await db.query.customers.findFirst({
+        where: eq(customers.userId, userId),
+      });
+
+      if (!customer) {
+        return res.status(404).json({ message: "Customer not found" });
+      }
+
+      res.json(customer);
+    } catch (error: any) {
+      console.error("Error fetching customer:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Create/update customer profile with age verification
+  app.post("/api/customers/verify-age", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.userId!;
+      const userEmail = req.userEmail;
+      
+      if (!userId || !userEmail) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const schema = z.object({
+        firstName: z.string().min(1, "First name is required"),
+        lastName: z.string().min(1, "Last name is required"),
+        dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format").refine((dob) => {
+          const parts = dob.split('-');
+          const year = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10);
+          const day = parseInt(parts[2], 10);
+          
+          // Validate year range
+          if (year < 1900 || year > new Date().getFullYear()) return false;
+          // Validate month
+          if (month < 1 || month > 12) return false;
+          // Validate day
+          if (day < 1 || day > 31) return false;
+          
+          // Check if it's a valid date
+          const date = new Date(year, month - 1, day);
+          return date.getFullYear() === year && 
+                 date.getMonth() === month - 1 && 
+                 date.getDate() === day;
+        }, "Invalid date"),
+      });
+
+      const validated = schema.parse(req.body);
+
+      // Parse and validate the date
+      const parts = validated.dateOfBirth.split('-');
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const birthDate = new Date(year, month, day);
+      
+      const today = new Date();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
+
+      // Check if user is 18+
+      if (age < 18) {
+        return res.status(403).json({ 
+          message: "You must be 18 or older to access this service",
+          isAgeVerified: false 
+        });
+      }
+
+      // Check if customer already exists
+      const existingCustomer = await db.query.customers.findFirst({
+        where: eq(customers.userId, userId),
+      });
+
+      let customer;
+
+      if (existingCustomer) {
+        // Update existing customer
+        const [updated] = await db
+          .update(customers)
+          .set({
+            firstName: validated.firstName,
+            lastName: validated.lastName,
+            dateOfBirth: validated.dateOfBirth,
+            isAgeVerified: true,
+            updatedAt: new Date(),
+          })
+          .where(eq(customers.userId, userId))
+          .returning();
+        
+        customer = updated;
+      } else {
+        // Create new customer
+        const [newCustomer] = await db
+          .insert(customers)
+          .values({
+            userId,
+            email: userEmail,
+            firstName: validated.firstName,
+            lastName: validated.lastName,
+            dateOfBirth: validated.dateOfBirth,
+            isAgeVerified: true,
+          })
+          .returning();
+        
+        customer = newCustomer;
+      }
+
+      res.json(customer);
+    } catch (error: any) {
+      console.error("Error verifying age:", error);
+      
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Validation error", 
+          errors: error.errors 
+        });
+      }
+      
+      res.status(500).json({ message: error.message });
     }
   });
 

@@ -175,6 +175,28 @@ export const insertCustomerFavoriteSchema = createInsertSchema(customerFavorites
 export type InsertCustomerFavorite = z.infer<typeof insertCustomerFavoriteSchema>;
 export type CustomerFavorite = typeof customerFavorites.$inferSelect;
 
+// ============ CUSTOMERS ============
+export const customers = pgTable("customers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique(),
+  email: varchar("email", { length: 255 }).notNull(),
+  firstName: varchar("first_name", { length: 100 }),
+  lastName: varchar("last_name", { length: 100 }),
+  dateOfBirth: varchar("date_of_birth", { length: 10 }),
+  isAgeVerified: boolean("is_age_verified").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertCustomerSchema = createInsertSchema(customers).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertCustomer = z.infer<typeof insertCustomerSchema>;
+export type Customer = typeof customers.$inferSelect;
+
 // ============ EXTENDED TYPES ============
 export type ProductWithBrand = Product & {
   brand: Brand | null;
