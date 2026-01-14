@@ -20,8 +20,16 @@ export async function apiRequest(
   method: string,
   url: string,
   data?: unknown | undefined,
+  accessToken?: string,
 ): Promise<Response> {
-  const authHeaders = await getAuthHeaders();
+  let authHeaders: Record<string, string> = {};
+  
+  if (accessToken) {
+    authHeaders = { Authorization: `Bearer ${accessToken}` };
+  } else {
+    authHeaders = await getAuthHeaders();
+  }
+  
   const res = await fetch(url, {
     method,
     headers: {

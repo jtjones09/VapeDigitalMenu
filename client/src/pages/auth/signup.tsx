@@ -89,10 +89,14 @@ export default function SignupPage() {
 
       if (verifyError) throw verifyError;
 
-      // Wait for session to be established
-      await new Promise(resolve => setTimeout(resolve, 200));
+      // Get the access token from the session
+      const accessToken = data.session?.access_token;
+      
+      if (!accessToken) {
+        throw new Error("Failed to get authentication token");
+      }
 
-      // Now create the shop with the user's ID
+      // Now create the shop with the user's ID, passing the token directly
       const shopData = {
         shopName: formData.shopName,
         ownerName: formData.ownerName,
@@ -100,7 +104,7 @@ export default function SignupPage() {
         state: formData.state,
       };
 
-      await apiRequest("POST", "/api/shops", shopData);
+      await apiRequest("POST", "/api/shops", shopData, accessToken);
       await queryClient.invalidateQueries();
 
       toast({
