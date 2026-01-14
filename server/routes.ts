@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated, registerAuthRoutes } from "./replit_integrations/auth";
+import { isAuthenticated, type AuthenticatedRequest } from "./auth/supabase";
 import { insertShopSchema, insertShopProductSchema, insertCustomerFavoriteSchema } from "@shared/schema";
 import { z } from "zod";
 
@@ -9,16 +9,12 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // Setup authentication
-  await setupAuth(app);
-  registerAuthRoutes(app);
-
   // ============ SHOPS ============
   
   // Get current user's shop
-  app.get("/api/shops/my", isAuthenticated, async (req: any, res) => {
+  app.get("/api/shops/my", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.userId!;
       const shop = await storage.getShopByUserId(userId);
       if (!shop) {
         return res.status(404).json({ message: "Shop not found" });
@@ -31,9 +27,9 @@ export async function registerRoutes(
   });
 
   // Create shop
-  app.post("/api/shops", isAuthenticated, async (req: any, res) => {
+  app.post("/api/shops", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.userId!;
       
       const existingShop = await storage.getShopByUserId(userId);
       if (existingShop) {
@@ -58,9 +54,9 @@ export async function registerRoutes(
   });
 
   // Update shop
-  app.patch("/api/shops/my", isAuthenticated, async (req: any, res) => {
+  app.patch("/api/shops/my", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.userId!;
       const shop = await storage.getShopByUserId(userId);
       
       if (!shop) {
@@ -124,9 +120,9 @@ export async function registerRoutes(
   // ============ SHOP PRODUCTS (Menu Management) ============
 
   // Get current shop's products
-  app.get("/api/shops/my/products", isAuthenticated, async (req: any, res) => {
+  app.get("/api/shops/my/products", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.userId!;
       const shop = await storage.getShopByUserId(userId);
       
       if (!shop) {
@@ -142,9 +138,9 @@ export async function registerRoutes(
   });
 
   // Add product to shop menu
-  app.post("/api/shops/my/products", isAuthenticated, async (req: any, res) => {
+  app.post("/api/shops/my/products", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.userId!;
       const shop = await storage.getShopByUserId(userId);
       
       if (!shop) {
@@ -175,9 +171,9 @@ export async function registerRoutes(
   });
 
   // Update shop product
-  app.patch("/api/shops/my/products/:id", isAuthenticated, async (req: any, res) => {
+  app.patch("/api/shops/my/products/:id", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.userId!;
       const shop = await storage.getShopByUserId(userId);
       
       if (!shop) {
@@ -193,9 +189,9 @@ export async function registerRoutes(
   });
 
   // Remove product from shop menu
-  app.delete("/api/shops/my/products/:productId", isAuthenticated, async (req: any, res) => {
+  app.delete("/api/shops/my/products/:productId", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.userId!;
       const shop = await storage.getShopByUserId(userId);
       
       if (!shop) {
@@ -211,9 +207,9 @@ export async function registerRoutes(
   });
 
   // Reorder shop products
-  app.put("/api/shops/my/products/reorder", isAuthenticated, async (req: any, res) => {
+  app.put("/api/shops/my/products/reorder", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.userId!;
       const shop = await storage.getShopByUserId(userId);
       
       if (!shop) {
@@ -254,9 +250,9 @@ export async function registerRoutes(
   // ============ CUSTOMER FAVORITES ============
 
   // Get customer favorites
-  app.get("/api/customers/favorites/:shopId", isAuthenticated, async (req: any, res) => {
+  app.get("/api/customers/favorites/:shopId", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
-      const customerId = req.user.claims.sub;
+      const customerId = req.userId!;
       const favorites = await storage.getCustomerFavorites(customerId, req.params.shopId);
       res.json(favorites);
     } catch (error) {
@@ -266,9 +262,9 @@ export async function registerRoutes(
   });
 
   // Add favorite
-  app.post("/api/customers/favorites", isAuthenticated, async (req: any, res) => {
+  app.post("/api/customers/favorites", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
-      const customerId = req.user.claims.sub;
+      const customerId = req.userId!;
       const { productId, shopId } = req.body;
 
       if (!productId || !shopId) {
@@ -294,9 +290,9 @@ export async function registerRoutes(
   });
 
   // Remove favorite
-  app.delete("/api/customers/favorites/:productId", isAuthenticated, async (req: any, res) => {
+  app.delete("/api/customers/favorites/:productId", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
-      const customerId = req.user.claims.sub;
+      const customerId = req.userId!;
       const { shopId } = req.query;
 
       if (!shopId) {
@@ -308,6 +304,21 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error removing favorite:", error);
       res.status(500).json({ message: "Failed to remove favorite" });
+    }
+  });
+
+  // ============ AUTH ============
+  
+  // Get current user (for frontend auth state)
+  app.get("/api/auth/user", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+    try {
+      res.json({
+        id: req.userId,
+        email: req.userEmail,
+      });
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
     }
   });
 

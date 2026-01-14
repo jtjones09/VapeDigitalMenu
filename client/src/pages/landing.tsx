@@ -19,10 +19,10 @@ export default function Landing() {
           </div>
           <div className="flex items-center gap-3">
             <Button variant="ghost" asChild data-testid="button-login">
-              <a href="/api/login">Log In</a>
+              <a href="/login">Log In</a>
             </Button>
             <Button asChild data-testid="button-get-started">
-              <a href="/api/login">Get Started <ArrowRight className="w-4 h-4 ml-1" /></a>
+              <a href="/login">Get Started <ArrowRight className="w-4 h-4 ml-1" /></a>
             </Button>
           </div>
         </div>
@@ -46,7 +46,7 @@ export default function Landing() {
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4">
                   <Button size="lg" asChild data-testid="button-start-free">
-                    <a href="/api/login">
+                    <a href="/login">
                       Start Free <ArrowRight className="w-4 h-4 ml-2" />
                     </a>
                   </Button>

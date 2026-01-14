@@ -32,8 +32,17 @@ export default function Products() {
     queryKey: ["/api/shops/my"],
   });
 
+  const buildProductsQueryKey = () => {
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    if (typeFilter !== "all") params.set("type", typeFilter);
+    if (flavorFilter !== "all") params.set("flavor", flavorFilter);
+    const queryString = params.toString();
+    return [`/api/products${queryString ? `?${queryString}` : ""}`];
+  };
+
   const { data: products, isLoading: productsLoading } = useQuery<ProductWithBrand[]>({
-    queryKey: ["/api/products", { search, type: typeFilter, flavor: flavorFilter }],
+    queryKey: buildProductsQueryKey(),
   });
 
   const { data: myProducts } = useQuery<ShopProduct[]>({
