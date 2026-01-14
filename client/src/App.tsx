@@ -1,5 +1,5 @@
 import { Switch, Route } from "wouter";
-import { queryClient } from "./lib/queryClient";
+import { queryClient, getAuthHeaders } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -22,9 +22,23 @@ import type { Shop } from "@shared/schema";
 function AdminRoutes() {
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
 
-  const { data: shop, isLoading: shopLoading } = useQuery<Shop>({
+  const { data: shop, isLoading: shopLoading, error: shopError } = useQuery<Shop | null>({
     queryKey: ["/api/shops/my"],
     enabled: isAuthenticated,
+    retry: false,
+    queryFn: async () => {
+      const res = await fetch("/api/shops/my", {
+        headers: await getAuthHeaders(),
+        credentials: "include",
+      });
+      if (res.status === 404) {
+        return null;
+      }
+      if (!res.ok) {
+        throw new Error(`${res.status}: ${await res.text()}`);
+      }
+      return res.json();
+    },
   });
 
   if (authLoading || (isAuthenticated && shopLoading)) {
@@ -39,7 +53,7 @@ function AdminRoutes() {
     return <Landing />;
   }
 
-  if (isAuthenticated && !shop) {
+  if (isAuthenticated && (!shop || shopError)) {
     return <Onboarding />;
   }
 
@@ -61,6 +75,7 @@ function Router() {
       <Route path="/" component={AdminRoutes} />
       <Route path="/login" component={LoginPage} />
       <Route path="/signup" component={SignupPage} />
+      <Route path="/admin" component={AdminRoutes} />
       <Route path="/admin/:rest*" component={AdminRoutes} />
       <Route path="/menu/:shopId" component={Menu} />
       <Route path="/menu/:shopId/product/:productId" component={ProductDetail} />
