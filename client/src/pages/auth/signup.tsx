@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Store, ArrowRight, Loader2, ArrowLeft } from "lucide-react";
+import { Store, ArrowRight, Loader2, ArrowLeft, Home } from "lucide-react";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
 interface SignupData {
@@ -192,6 +192,14 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted flex items-center justify-center p-4">
+      <div className="absolute top-4 left-4">
+        <Button variant="ghost" size="sm" asChild data-testid="button-back-home">
+          <Link href="/">
+            <Home className="w-4 h-4 mr-2" />
+            Home
+          </Link>
+        </Button>
+      </div>
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-2">
           <div className="w-16 h-16 rounded-2xl bg-primary mx-auto flex items-center justify-center mb-2">
