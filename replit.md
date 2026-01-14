@@ -88,3 +88,36 @@ shared/           # Shared code between client and server
 - **Vite**: Frontend build tool with React plugin
 - **ESBuild**: Server bundling for production
 - **drizzle-kit**: Database migration tooling
+
+## Recent Changes
+
+### January 2026
+- Fixed menu query key construction to properly build URL with query parameters
+- Fixed seed script to insert msrp values as numbers instead of strings
+- Added demo shop with ID "demo" for testing and demonstration
+- All 47 demo products with 8 brands now seeded into database
+
+## Key Features
+
+### Admin Portal (/admin/*)
+- Dashboard with shop overview
+- Products Catalog with search and filters
+- My Menu page for drag-and-drop menu customization
+- Setup page with QR code generation for customers
+- Settings page for shop configuration and kiosk timeout
+
+### Customer Menu (/menu/:shopId)
+- Product grid with search and category filters
+- Product detail pages with variant information
+- Customer favorites (when logged in)
+- Kiosk mode (?mode=kiosk) with:
+  - Auto-logout timer (configurable, default 5 minutes)
+  - Staff reset button for session clearing
+  - Larger touch-friendly UI elements
+
+### Demo Shop
+- Shop ID: "demo"
+- 47 products across 8 brands
+- Test URLs:
+  - Customer menu: /menu/demo
+  - Kiosk mode: /menu/demo?mode=kiosk
