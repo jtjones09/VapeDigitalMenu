@@ -94,6 +94,12 @@ shared/           # Shared code between client and server
 ## Recent Changes
 
 ### January 2026
+- Added age verification system for customers (18+ requirement)
+  - New `customers` table for storing customer profiles and age verification status
+  - Age verification modal collects first name, last name, and date of birth
+  - Server-side validation ensures users are 18+ before granting access
+  - Shop owners are excluded from age verification (they can browse menus freely)
+  - Kiosk mode users are not prompted for age verification
 - Fixed menu query key construction to properly build URL with query parameters
 - Fixed seed script to insert msrp values as numbers instead of strings
 - Added demo shop with ID "demo" for testing and demonstration
