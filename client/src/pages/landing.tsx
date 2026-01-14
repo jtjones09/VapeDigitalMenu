@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { QrCode, Tablet, Store, ArrowRight, Zap, Shield, BarChart3 } from "lucide-react";
+import { QrCode, Tablet, Store, ArrowRight, Zap, BarChart3 } from "lucide-react";
 
 export default function Landing() {
   return (
@@ -55,10 +55,6 @@ export default function Landing() {
                   </Button>
                 </div>
                 <div className="flex items-center gap-6 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <Shield className="w-4 h-4 text-primary" />
-                    <span>Free forever plan</span>
-                  </div>
                   <div className="flex items-center gap-2">
                     <Zap className="w-4 h-4 text-primary" />
                     <span>Setup in 5 minutes</span>
