@@ -103,10 +103,10 @@ export default function CustomerLoginPage() {
           </Link>
         </Button>
         <CardHeader className="text-center space-y-2 pt-12">
-          <CardTitle className="text-2xl font-bold">Customer Sign In</CardTitle>
+          <CardTitle className="text-2xl font-bold">Customer Sign In / Sign Up</CardTitle>
           <CardDescription>
             {step === "email" 
-              ? "Enter your email to access your favorites and preferences"
+              ? "Enter your email to sign in or create a new account. We'll send you a verification code."
               : "Enter the verification code sent to your email"
             }
           </CardDescription>

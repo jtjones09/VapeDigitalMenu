@@ -339,7 +339,7 @@ export default function Menu() {
               <Button variant="outline" size="sm" asChild data-testid="button-login">
                 <Link href={`/customer-login?redirect=/menu/${params.shopId}${isKioskMode ? '?mode=kiosk' : ''}`}>
                   <LogIn className="w-4 h-4 mr-2" />
-                  Log In
+                  Sign In
                 </Link>
               </Button>
             )}
