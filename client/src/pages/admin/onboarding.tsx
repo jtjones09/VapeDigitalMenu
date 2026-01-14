@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -9,8 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
-import { QrCode, Store, ArrowRight, Loader2 } from "lucide-react";
+import { QrCode, Store, ArrowRight, Loader2, LogOut } from "lucide-react";
 
 const onboardingSchema = z.object({
   shopName: z.string().min(2, "Shop name must be at least 2 characters"),
@@ -28,6 +28,12 @@ export default function Onboarding() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { signOut } = useAuth();
+
+  const handleLogout = async () => {
+    await signOut();
+    setLocation("/");
+  };
 
   const form = useForm<OnboardingFormValues>({
     resolver: zodResolver(onboardingSchema),
@@ -79,6 +85,16 @@ export default function Onboarding() {
           </div>
           <h1 className="text-3xl font-bold mb-2">Welcome to MenuBoard</h1>
           <p className="text-muted-foreground">Let's set up your shop to get started</p>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={handleLogout}
+            className="mt-4 text-muted-foreground"
+            data-testid="button-logout-onboarding"
+          >
+            <LogOut className="w-4 h-4 mr-2" />
+            Not you? Log out
+          </Button>
         </div>
 
         <Card>

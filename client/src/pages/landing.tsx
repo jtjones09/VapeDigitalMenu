@@ -180,7 +180,7 @@ export default function Landing() {
               Join thousands of shop owners using MenuBoard to create beautiful digital menus.
             </p>
             <Button size="lg" variant="secondary" asChild data-testid="button-cta-signup">
-              <a href="/api/login">
+              <a href="/signup">
                 Get Started Free <ArrowRight className="w-4 h-4 ml-2" />
               </a>
             </Button>
