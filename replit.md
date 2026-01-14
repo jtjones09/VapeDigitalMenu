@@ -97,7 +97,9 @@ shared/           # Shared code between client and server
 - Fixed menu query key construction to properly build URL with query parameters
 - Fixed seed script to insert msrp values as numbers instead of strings
 - Added demo shop with ID "demo" for testing and demonstration
-- All 47 demo products with 8 brands now seeded into database
+- Expanded product catalog: 25 real vape brands, 200 products, 5,360 variants
+- Migrated authentication from Replit Auth to Supabase OTP (email verification codes)
+- Fixed logout redirect to properly navigate to landing page
 
 ## Key Features
 
@@ -119,7 +121,8 @@ shared/           # Shared code between client and server
 
 ### Demo Shop
 - Shop ID: "demo"
-- 47 products across 8 brands
+- 200 products across 25 real vape brands (115 e-liquids, 50 disposables, 35 hardware/accessories)
+- 5,360 product variants with realistic pricing and options
 - Test URLs:
   - Customer menu: /menu/demo
   - Kiosk mode: /menu/demo?mode=kiosk
