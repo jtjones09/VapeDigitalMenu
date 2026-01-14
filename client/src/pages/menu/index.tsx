@@ -122,6 +122,42 @@ export default function Menu() {
   }, [isKioskMode, shop?.kioskTimeoutMinutes, resetActivity]);
 
   useEffect(() => {
+    if (!isKioskMode) return;
+
+    const enterFullscreen = async () => {
+      try {
+        const elem = document.documentElement;
+        if (elem.requestFullscreen) {
+          await elem.requestFullscreen();
+        } else if ((elem as any).webkitRequestFullscreen) {
+          await (elem as any).webkitRequestFullscreen();
+        } else if ((elem as any).msRequestFullscreen) {
+          await (elem as any).msRequestFullscreen();
+        }
+      } catch (err) {
+        console.error('Failed to enter fullscreen:', err);
+      }
+    };
+
+    const timeout = setTimeout(enterFullscreen, 1000);
+
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement && isKioskMode) {
+        setTimeout(enterFullscreen, 1000);
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+
+    return () => {
+      clearTimeout(timeout);
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+    };
+  }, [isKioskMode]);
+
+  useEffect(() => {
     if (!isKioskMode || !shop?.kioskTimeoutMinutes) return;
 
     const interval = setInterval(() => {

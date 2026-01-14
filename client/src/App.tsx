@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
+import { InstallPrompt } from "@/components/install-prompt";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import LoginPage from "@/pages/auth/login";
@@ -90,6 +91,7 @@ function App() {
       <AuthProvider>
         <TooltipProvider>
           <Toaster />
+          <InstallPrompt />
           <Router />
         </TooltipProvider>
       </AuthProvider>
