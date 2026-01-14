@@ -140,6 +140,30 @@ const demoData = {
     { productName: "Laffy Taffy", productType: "e-liquid", flavorCategory: "candy", flavorDescription: "Stretchy taffy candy mix", brandIndex: 8 },
     { productName: "Jawbreaker", productType: "e-liquid", flavorCategory: "candy", flavorDescription: "Multi-layer jawbreaker candy", brandIndex: 8 },
 
+    // ==================== E-LIQUIDS - ADDITIONAL FRUIT (10 products) ====================
+    { productName: "Dragon Fruit", productType: "e-liquid", flavorCategory: "fruit", flavorDescription: "Exotic dragon fruit with hints of pear", brandIndex: 0 },
+    { productName: "Papaya Punch", productType: "e-liquid", flavorCategory: "fruit", flavorDescription: "Tropical papaya with citrus notes", brandIndex: 0 },
+    { productName: "Guava Nectar", productType: "e-liquid", flavorCategory: "fruit", flavorDescription: "Sweet guava with tropical undertones", brandIndex: 1 },
+    { productName: "Starfruit Splash", productType: "e-liquid", flavorCategory: "fruit", flavorDescription: "Tangy starfruit with citrus twist", brandIndex: 1 },
+    { productName: "Honeydew Heaven", productType: "e-liquid", flavorCategory: "fruit", flavorDescription: "Fresh honeydew melon perfection", brandIndex: 3 },
+    { productName: "Cantaloupe Dream", productType: "e-liquid", flavorCategory: "fruit", flavorDescription: "Ripe cantaloupe melon sweetness", brandIndex: 3 },
+    { productName: "Pear Perfection", productType: "e-liquid", flavorCategory: "fruit", flavorDescription: "Juicy Asian pear flavor", brandIndex: 4 },
+    { productName: "Pomegranate Burst", productType: "e-liquid", flavorCategory: "fruit", flavorDescription: "Tangy pomegranate explosion", brandIndex: 5 },
+    { productName: "Acai Berry", productType: "e-liquid", flavorCategory: "fruit", flavorDescription: "Exotic acai berry superfruit", brandIndex: 6 },
+    { productName: "Lychee Rose", productType: "e-liquid", flavorCategory: "fruit", flavorDescription: "Delicate lychee with rose notes", brandIndex: 7 },
+
+    // ==================== E-LIQUIDS - ADDITIONAL DESSERT (10 products) ====================
+    { productName: "Tiramisu", productType: "e-liquid", flavorCategory: "dessert", flavorDescription: "Italian coffee-soaked ladyfinger dessert", brandIndex: 1 },
+    { productName: "Pumpkin Spice", productType: "e-liquid", flavorCategory: "dessert", flavorDescription: "Fall pumpkin with warm spices", brandIndex: 2 },
+    { productName: "Churro", productType: "e-liquid", flavorCategory: "dessert", flavorDescription: "Cinnamon sugar fried dough", brandIndex: 2 },
+    { productName: "Cookies and Cream", productType: "e-liquid", flavorCategory: "dessert", flavorDescription: "Chocolate cookies in vanilla cream", brandIndex: 4 },
+    { productName: "Lemon Meringue", productType: "e-liquid", flavorCategory: "dessert", flavorDescription: "Tangy lemon with fluffy meringue", brandIndex: 4 },
+    { productName: "Bread Pudding", productType: "e-liquid", flavorCategory: "dessert", flavorDescription: "Warm bread pudding with raisins", brandIndex: 5 },
+    { productName: "Key Lime Pie", productType: "e-liquid", flavorCategory: "dessert", flavorDescription: "Florida key lime with graham crust", brandIndex: 6 },
+    { productName: "Banana Foster", productType: "e-liquid", flavorCategory: "dessert", flavorDescription: "Caramelized banana with rum notes", brandIndex: 7 },
+    { productName: "Chocolate Chip Cookie", productType: "e-liquid", flavorCategory: "dessert", flavorDescription: "Fresh-baked chocolate chip cookie", brandIndex: 8 },
+    { productName: "Boston Cream", productType: "e-liquid", flavorCategory: "dessert", flavorDescription: "Vanilla custard with chocolate glaze", brandIndex: 9 },
+
     // ==================== DISPOSABLES (50 products) ====================
     // Elf Bar (10)
     { productName: "Elf Bar BC5000 Strawberry Mango", productType: "disposable", flavorCategory: "fruit", flavorDescription: "Sweet strawberry and tropical mango blend, 5000 puffs", brandIndex: 10 },
