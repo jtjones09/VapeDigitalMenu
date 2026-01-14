@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { QrCode, Tablet, Store, ArrowRight, Zap, BarChart3 } from "lucide-react";
+import { QrCode, Tablet, Store, ArrowRight, Zap } from "lucide-react";
 
 export default function Landing() {
   return (
