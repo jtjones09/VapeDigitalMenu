@@ -22,7 +22,7 @@ export default function Landing() {
               <a href="/login">Log In</a>
             </Button>
             <Button asChild data-testid="button-get-started">
-              <a href="/login">Get Started <ArrowRight className="w-4 h-4 ml-1" /></a>
+              <a href="/signup">Get Started <ArrowRight className="w-4 h-4 ml-1" /></a>
             </Button>
           </div>
         </div>
@@ -46,7 +46,7 @@ export default function Landing() {
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4">
                   <Button size="lg" asChild data-testid="button-start-free">
-                    <a href="/login">
+                    <a href="/signup">
                       Start Free <ArrowRight className="w-4 h-4 ml-2" />
                     </a>
                   </Button>

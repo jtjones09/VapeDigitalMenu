@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { supabase } from "@/lib/supabase";
 import { queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -133,6 +133,13 @@ export default function LoginPage() {
                 )}
                 Send verification code
               </Button>
+              
+              <p className="text-sm text-center text-muted-foreground">
+                Don't have an account?{" "}
+                <Link href="/signup" className="text-primary hover:underline" data-testid="link-signup">
+                  Sign up
+                </Link>
+              </p>
             </form>
           ) : (
             <div className="space-y-6">

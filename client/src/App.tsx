@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import LoginPage from "@/pages/auth/login";
+import SignupPage from "@/pages/auth/signup";
 import Onboarding from "@/pages/admin/onboarding";
 import Dashboard from "@/pages/admin/dashboard";
 import Products from "@/pages/admin/products";
@@ -59,6 +60,7 @@ function Router() {
     <Switch>
       <Route path="/" component={AdminRoutes} />
       <Route path="/login" component={LoginPage} />
+      <Route path="/signup" component={SignupPage} />
       <Route path="/admin/:rest*" component={AdminRoutes} />
       <Route path="/menu/:shopId" component={Menu} />
       <Route path="/menu/:shopId/product/:productId" component={ProductDetail} />
