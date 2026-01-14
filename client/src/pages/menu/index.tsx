@@ -28,6 +28,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Search,
   Heart,
   Package,
@@ -40,6 +47,7 @@ import {
   Timer,
   Maximize,
   Minimize,
+  LogOut,
 } from "lucide-react";
 import type { Shop, ProductWithBrand, CustomerFavorite, Customer } from "@shared/schema";
 
@@ -301,11 +309,32 @@ export default function Menu() {
             {authLoading ? (
               <Skeleton className="w-9 h-9 rounded-full" />
             ) : isAuthenticated ? (
-              <div className="flex items-center gap-2">
-                <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center">
-                  <User className="w-4 h-4" />
-                </div>
-              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button 
+                    className="w-9 h-9 rounded-full bg-muted flex items-center justify-center hover-elevate cursor-pointer"
+                    data-testid="button-user-menu"
+                  >
+                    <User className="w-4 h-4" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem disabled className="text-muted-foreground">
+                    {user?.email}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onClick={async () => {
+                      await signOut();
+                      setLocation(`/menu/${params.shopId}${isKioskMode ? '?mode=kiosk' : ''}`);
+                    }}
+                    data-testid="button-logout"
+                  >
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Log Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             ) : (
               <Button variant="outline" size="sm" asChild data-testid="button-login">
                 <Link href={`/customer-login?redirect=/menu/${params.shopId}${isKioskMode ? '?mode=kiosk' : ''}`}>
