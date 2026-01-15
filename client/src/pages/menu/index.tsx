@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -45,9 +46,12 @@ import {
   Lock,
   Timer,
   Maximize,
-  Minimize,
   LogOut,
+  Users,
+  Shield,
+  RotateCcw,
 } from "lucide-react";
+import { GuestLogin } from "@/components/guest-login";
 import type { Shop, ProductWithBrand, CustomerFavorite } from "@shared/schema";
 
 const flavorCategories = ["all", "fruit", "dessert", "menthol", "tobacco", "beverage", "candy", "other"];
@@ -69,6 +73,8 @@ export default function Menu() {
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [remainingTime, setRemainingTime] = useState<number | null>(null);
   const [lastActivity, setLastActivity] = useState(Date.now());
+  const [isGuestMode, setIsGuestMode] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
   const { data: shop, isLoading: shopLoading } = useQuery<Shop>({
     queryKey: ["/api/shops", params.shopId],
@@ -119,6 +125,75 @@ export default function Menu() {
   const resetActivity = useCallback(() => {
     setLastActivity(Date.now());
   }, []);
+
+  const handleGuestBrowse = useCallback(async () => {
+    try {
+      const response = await fetch("/api/sessions/guest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shopId: params.shopId }),
+      });
+      
+      if (response.ok) {
+        const session = await response.json();
+        setSessionId(session.id);
+        setIsGuestMode(true);
+      }
+    } catch (error) {
+      console.error("Failed to create guest session:", error);
+      setIsGuestMode(true);
+    }
+  }, [params.shopId]);
+
+  const handleStaffReset = useCallback(async () => {
+    setShowResetDialog(false);
+    
+    try {
+      await fetch("/api/sessions/clear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shopId: params.shopId }),
+      });
+    } catch (error) {
+      console.error("Failed to clear sessions:", error);
+    }
+    
+    if (isAuthenticated) {
+      await signOut();
+    }
+    
+    setIsGuestMode(false);
+    setSessionId(null);
+    setSearch("");
+    setTypeFilter("all");
+    setFlavorFilter("all");
+    setLastActivity(Date.now());
+    queryClient.invalidateQueries();
+  }, [isAuthenticated, signOut, params.shopId, queryClient]);
+
+  useEffect(() => {
+    if (!isKioskMode || !sessionId) return;
+
+    const sendHeartbeat = async () => {
+      try {
+        const response = await fetch("/api/sessions/heartbeat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId }),
+        });
+        
+        if (response.status === 410) {
+          setIsGuestMode(false);
+          setSessionId(null);
+        }
+      } catch (error) {
+        console.error("Heartbeat failed:", error);
+      }
+    };
+
+    const interval = setInterval(sendHeartbeat, 30000);
+    return () => clearInterval(interval);
+  }, [isKioskMode, sessionId]);
 
   useEffect(() => {
     if (!isKioskMode || !shop?.kioskTimeoutMinutes) return;
@@ -171,13 +246,29 @@ export default function Menu() {
       const remaining = Math.max(0, timeoutMs - elapsed);
       setRemainingTime(remaining);
 
-      if (remaining === 0 && isAuthenticated) {
-        signOut().then(() => setLocation("/"));
+      if (remaining === 0) {
+        if (sessionId) {
+          fetch(`/api/sessions/${sessionId}`, {
+            method: "DELETE",
+          }).catch(console.error);
+          setSessionId(null);
+        }
+        
+        if (isAuthenticated) {
+          signOut().then(() => {
+            setIsGuestMode(false);
+            setLocation(`/menu/${params.shopId}?mode=kiosk`);
+          });
+        } else if (isGuestMode) {
+          setIsGuestMode(false);
+          setLocation(`/menu/${params.shopId}?mode=kiosk`);
+        }
+        setLastActivity(Date.now());
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isKioskMode, shop?.kioskTimeoutMinutes, lastActivity, isAuthenticated]);
+  }, [isKioskMode, shop?.kioskTimeoutMinutes, lastActivity, isAuthenticated, isGuestMode, params.shopId, sessionId, signOut]);
 
   const formatTime = (ms: number) => {
     const minutes = Math.floor(ms / 60000);
@@ -220,8 +311,20 @@ export default function Menu() {
     );
   }
 
+  if (isKioskMode && !isAuthenticated && !isGuestMode && !authLoading) {
+    return (
+      <GuestLogin
+        onLoginClick={() => setLocation(`/customer-login?redirect=/menu/${params.shopId}?mode=kiosk`)}
+        onGuestClick={handleGuestBrowse}
+        shopName={shop.shopName}
+        logoUrl={shop.logoUrl}
+        isKiosk={true}
+      />
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className={cn("min-h-screen bg-background", isKioskMode && "kiosk-mode")}>
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur border-b border-border">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -263,6 +366,9 @@ export default function Menu() {
                   <DropdownMenuItem 
                     onClick={async () => {
                       await signOut();
+                      if (isKioskMode) {
+                        setIsGuestMode(false);
+                      }
                       setLocation(`/menu/${params.shopId}${isKioskMode ? '?mode=kiosk' : ''}`);
                     }}
                     data-testid="button-logout"
@@ -272,6 +378,22 @@ export default function Menu() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+            ) : isGuestMode ? (
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="text-xs" data-testid="badge-guest-mode">
+                  <Users className="w-3 h-3 mr-1" />
+                  Guest
+                </Badge>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setLocation(`/customer-login?redirect=/menu/${params.shopId}?mode=kiosk`)}
+                  data-testid="button-login"
+                >
+                  <LogIn className="w-4 h-4 mr-2" />
+                  Sign In
+                </Button>
+              </div>
             ) : (
               <Button variant="outline" size="sm" asChild data-testid="button-login">
                 <Link href={`/customer-login?redirect=/menu/${params.shopId}${isKioskMode ? '?mode=kiosk' : ''}`}>
@@ -415,58 +537,80 @@ export default function Menu() {
       </main>
 
       {isKioskMode && (
-        <footer className="fixed bottom-0 left-0 right-0 bg-background border-t border-border px-4 py-3">
-          <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Timer className="w-4 h-4" />
-              {remainingTime !== null && (
-                <span>Auto-logout in: {formatTime(remainingTime)}</span>
-              )}
+        <>
+          <footer className="fixed bottom-0 left-0 right-0 bg-background border-t border-border px-4 py-4">
+            <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <Timer className="w-5 h-5 text-muted-foreground" />
+                <div className="flex flex-col gap-1">
+                  {remainingTime !== null && (
+                    <>
+                      <span className="text-lg text-muted-foreground">
+                        Auto-logout in: {formatTime(remainingTime)}
+                      </span>
+                      <div className="w-48 h-2 bg-muted rounded-full overflow-hidden">
+                        <div 
+                          className={cn(
+                            "h-full transition-all duration-1000 rounded-full",
+                            remainingTime < 60000 ? "bg-destructive" : "bg-primary"
+                          )}
+                          style={{ 
+                            width: `${Math.min(100, (remainingTime / ((shop?.kioskTimeoutMinutes || 5) * 60 * 1000)) * 100)}%` 
+                          }}
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {!isFullscreen && (
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={enterFullscreen}
+                    className="h-12"
+                    data-testid="button-fullscreen"
+                  >
+                    <Maximize className="w-5 h-5 mr-2" />
+                    Fullscreen
+                  </Button>
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              {!isFullscreen && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={enterFullscreen}
-                  data-testid="button-fullscreen"
-                >
-                  <Maximize className="w-4 h-4 mr-2" />
-                  Fullscreen
-                </Button>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowResetDialog(true)}
-                data-testid="button-staff-reset"
-              >
-                <Lock className="w-4 h-4 mr-2" />
-                Staff Reset
-              </Button>
-            </div>
-          </div>
-        </footer>
+          </footer>
+          <Button
+            variant="destructive"
+            size="icon"
+            className="fixed bottom-20 right-4 w-[60px] h-[60px] rounded-full shadow-lg"
+            onClick={() => setShowResetDialog(true)}
+            data-testid="button-staff-reset"
+          >
+            <Shield className="w-6 h-6" />
+          </Button>
+        </>
       )}
 
       <AlertDialog open={showResetDialog} onOpenChange={setShowResetDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Log Out Current Customer?</AlertDialogTitle>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <RotateCcw className="w-5 h-5" />
+              Reset Kiosk Session?
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              This will clear the session and return to the login screen.
+              This will clear the current session and return to the welcome screen.
+              Any unsaved data will be lost.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel data-testid="button-cancel-reset">Cancel</AlertDialogCancel>
             <AlertDialogAction 
-              onClick={async () => {
-                await signOut();
-                setLocation("/");
-              }}
+              onClick={handleStaffReset}
+              className="bg-destructive text-destructive-foreground"
               data-testid="button-confirm-reset"
             >
-              Yes, Reset
+              Reset Session
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

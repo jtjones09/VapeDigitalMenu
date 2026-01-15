@@ -197,6 +197,37 @@ export const insertCustomerSchema = createInsertSchema(customers).omit({
 export type InsertCustomer = z.infer<typeof insertCustomerSchema>;
 export type Customer = typeof customers.$inferSelect;
 
+// ============ KIOSK SESSIONS ============
+export const sessionModes = ["personal", "kiosk", "guest"] as const;
+
+export const kioskSessions = pgTable("kiosk_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id"),
+  shopId: varchar("shop_id").references(() => shops.id).notNull(),
+  mode: varchar("mode", { length: 20 }).notNull(),
+  lastActivity: timestamp("last_activity").defaultNow(),
+  expiresAt: timestamp("expires_at").notNull(),
+  ipAddress: varchar("ip_address", { length: 50 }),
+  userAgent: varchar("user_agent", { length: 500 }),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const kioskSessionsRelations = relations(kioskSessions, ({ one }) => ({
+  shop: one(shops, {
+    fields: [kioskSessions.shopId],
+    references: [shops.id],
+  }),
+}));
+
+export const insertKioskSessionSchema = createInsertSchema(kioskSessions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertKioskSession = z.infer<typeof insertKioskSessionSchema>;
+export type KioskSession = typeof kioskSessions.$inferSelect;
+export type SessionMode = typeof sessionModes[number];
+
 // ============ EXTENDED TYPES ============
 export type ProductWithBrand = Product & {
   brand: Brand | null;

@@ -1,11 +1,12 @@
 import {
-  shops, brands, products, productVariants, shopProducts, customerFavorites,
+  shops, brands, products, productVariants, shopProducts, customerFavorites, kioskSessions,
   type Shop, type InsertShop, type Brand, type InsertBrand, type Product, type InsertProduct,
   type ProductVariant, type InsertProductVariant, type ShopProduct, type InsertShopProduct,
-  type CustomerFavorite, type InsertCustomerFavorite, type ProductWithBrand, type ShopProductWithDetails
+  type CustomerFavorite, type InsertCustomerFavorite, type ProductWithBrand, type ShopProductWithDetails,
+  type KioskSession, type InsertKioskSession
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, ilike, or, sql, asc, desc } from "drizzle-orm";
+import { eq, and, ilike, or, sql, asc, desc, lt } from "drizzle-orm";
 
 export interface IStorage {
   // Shops
@@ -39,6 +40,14 @@ export interface IStorage {
   addFavorite(favorite: InsertCustomerFavorite): Promise<CustomerFavorite>;
   removeFavorite(customerId: string, productId: string, shopId: string): Promise<void>;
   isFavorite(customerId: string, productId: string, shopId: string): Promise<boolean>;
+
+  // Kiosk Sessions
+  createKioskSession(session: InsertKioskSession): Promise<KioskSession>;
+  getKioskSession(id: string): Promise<KioskSession | undefined>;
+  updateKioskSessionActivity(id: string): Promise<KioskSession | undefined>;
+  clearShopKioskSessions(shopId: string): Promise<void>;
+  deleteKioskSession(id: string): Promise<void>;
+  cleanupExpiredKioskSessions(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -278,6 +287,38 @@ export class DatabaseStorage implements IStorage {
         )
       );
     return !!existing;
+  }
+
+  // Kiosk Sessions
+  async createKioskSession(session: InsertKioskSession): Promise<KioskSession> {
+    const [newSession] = await db.insert(kioskSessions).values(session).returning();
+    return newSession;
+  }
+
+  async getKioskSession(id: string): Promise<KioskSession | undefined> {
+    const [session] = await db.select().from(kioskSessions).where(eq(kioskSessions.id, id));
+    return session;
+  }
+
+  async updateKioskSessionActivity(id: string): Promise<KioskSession | undefined> {
+    const [updated] = await db
+      .update(kioskSessions)
+      .set({ lastActivity: new Date() })
+      .where(eq(kioskSessions.id, id))
+      .returning();
+    return updated;
+  }
+
+  async clearShopKioskSessions(shopId: string): Promise<void> {
+    await db.delete(kioskSessions).where(eq(kioskSessions.shopId, shopId));
+  }
+
+  async deleteKioskSession(id: string): Promise<void> {
+    await db.delete(kioskSessions).where(eq(kioskSessions.id, id));
+  }
+
+  async cleanupExpiredKioskSessions(): Promise<void> {
+    await db.delete(kioskSessions).where(lt(kioskSessions.expiresAt, new Date()));
   }
 }
 

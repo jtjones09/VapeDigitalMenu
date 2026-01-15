@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { isAuthenticated, type AuthenticatedRequest } from "./auth/supabase";
-import { insertShopSchema, insertShopProductSchema, insertCustomerFavoriteSchema, customers } from "@shared/schema";
+import { insertShopSchema, insertShopProductSchema, insertCustomerFavoriteSchema, customers, insertKioskSessionSchema } from "@shared/schema";
 import { z } from "zod";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
@@ -306,6 +306,121 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error removing favorite:", error);
       res.status(500).json({ message: "Failed to remove favorite" });
+    }
+  });
+
+  // ============ SESSIONS (Kiosk/Guest Mode) ============
+
+  // Create guest session
+  app.post("/api/sessions/guest", async (req, res) => {
+    try {
+      const schema = z.object({
+        shopId: z.string().min(1, "Shop ID required"),
+      });
+
+      const validated = schema.parse(req.body);
+      const shop = await storage.getShop(validated.shopId);
+      
+      if (!shop) {
+        return res.status(404).json({ message: "Shop not found" });
+      }
+
+      const timeoutMinutes = shop.kioskTimeoutMinutes || 5;
+      const expiresAt = new Date();
+      expiresAt.setMinutes(expiresAt.getMinutes() + timeoutMinutes);
+
+      const sessionData = insertKioskSessionSchema.parse({
+        userId: null,
+        shopId: validated.shopId,
+        mode: "guest",
+        expiresAt,
+        ipAddress: req.ip || null,
+        userAgent: req.get('user-agent')?.substring(0, 500) || null,
+      });
+
+      const session = await storage.createKioskSession(sessionData);
+      res.json(session);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      console.error("Error creating guest session:", error);
+      res.status(500).json({ message: "Failed to create session" });
+    }
+  });
+
+  // Clear all sessions for a shop (staff reset)
+  app.post("/api/sessions/clear", async (req, res) => {
+    try {
+      const schema = z.object({
+        shopId: z.string().min(1, "Shop ID required"),
+      });
+
+      const validated = schema.parse(req.body);
+      await storage.clearShopKioskSessions(validated.shopId);
+      res.json({ message: "Sessions cleared" });
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      console.error("Error clearing sessions:", error);
+      res.status(500).json({ message: "Failed to clear sessions" });
+    }
+  });
+
+  // Update session activity (heartbeat)
+  app.post("/api/sessions/heartbeat", async (req, res) => {
+    try {
+      const schema = z.object({
+        sessionId: z.string().min(1, "Session ID required"),
+      });
+
+      const validated = schema.parse(req.body);
+      const session = await storage.getKioskSession(validated.sessionId);
+      
+      if (!session) {
+        return res.status(404).json({ message: "Session not found" });
+      }
+
+      if (new Date() > new Date(session.expiresAt)) {
+        await storage.deleteKioskSession(validated.sessionId);
+        return res.status(410).json({ message: "Session expired" });
+      }
+
+      const updated = await storage.updateKioskSessionActivity(validated.sessionId);
+      res.json(updated);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      console.error("Error updating session:", error);
+      res.status(500).json({ message: "Failed to update session" });
+    }
+  });
+
+  // Delete a specific session
+  app.delete("/api/sessions/:sessionId", async (req, res) => {
+    try {
+      const sessionId = req.params.sessionId;
+      if (!sessionId) {
+        return res.status(400).json({ message: "Session ID required" });
+      }
+      await storage.deleteKioskSession(sessionId);
+      res.json({ message: "Session deleted" });
+    } catch (error: any) {
+      console.error("Error deleting session:", error);
+      res.status(500).json({ message: "Failed to delete session" });
+    }
+  });
+
+  // Cleanup expired sessions
+  app.post("/api/sessions/cleanup", async (req, res) => {
+    try {
+      await storage.cleanupExpiredKioskSessions();
+      res.json({ message: "Cleanup complete" });
+    } catch (error: any) {
+      console.error("Error cleaning up sessions:", error);
+      res.status(500).json({ message: "Failed to cleanup sessions" });
     }
   });
 
