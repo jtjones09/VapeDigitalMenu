@@ -319,6 +319,7 @@ export default function Menu() {
         shopName={shop.shopName}
         logoUrl={shop.logoUrl}
         isKiosk={true}
+        shopId={params.shopId}
       />
     );
   }

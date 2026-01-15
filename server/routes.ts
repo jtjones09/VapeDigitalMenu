@@ -2,10 +2,10 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { isAuthenticated, type AuthenticatedRequest } from "./auth/supabase";
-import { insertShopSchema, insertShopProductSchema, insertCustomerFavoriteSchema, customers, insertKioskSessionSchema } from "@shared/schema";
+import { insertShopSchema, insertShopProductSchema, insertCustomerFavoriteSchema, customers, insertKioskSessionSchema, shops, users } from "@shared/schema";
 import { z } from "zod";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -606,6 +606,65 @@ export async function registerRoutes(
       }
       
       res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ============ KIOSK ADMIN ACCESS ============
+
+  // Verify shop owner for kiosk admin access
+  app.post("/api/kiosk/admin-access", async (req, res) => {
+    try {
+      const schema = z.object({
+        email: z.string().email("Invalid email format"),
+        shopId: z.string().min(1, "Shop ID is required"),
+      });
+
+      const { email, shopId } = schema.parse(req.body);
+
+      console.log(`Admin access attempt: ${email} for shop ${shopId} from IP ${req.ip}`);
+
+      // Query: Check if this email belongs to the owner of THIS specific shop
+      // Uses INNER JOIN to ensure BOTH conditions are true
+      const result = await db
+        .select({
+          userId: users.id,
+          userEmail: users.email,
+          shopId: shops.id,
+          shopName: shops.shopName,
+        })
+        .from(users)
+        .innerJoin(shops, eq(shops.userId, users.id))
+        .where(
+          and(
+            eq(users.email, email),
+            eq(shops.id, shopId)
+          )
+        )
+        .limit(1);
+
+      if (result.length === 0) {
+        console.log(`Admin access DENIED: ${email} for shop ${shopId} - not authorized`);
+        return res.status(403).json({ 
+          message: "Email not authorized for this shop" 
+        });
+      }
+
+      const shopOwner = result[0];
+      console.log(`Admin access GRANTED: ${email} for shop ${shopId} (${shopOwner.shopName})`);
+
+      res.json({ 
+        authorized: true, 
+        email: shopOwner.userEmail,
+        shopName: shopOwner.shopName,
+      });
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: error.errors[0].message 
+        });
+      }
+      console.error("Error verifying admin access:", error);
+      res.status(500).json({ message: "Failed to verify admin access" });
     }
   });
 

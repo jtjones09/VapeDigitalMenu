@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { UserCircle, LogIn, Users, Tablet } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AdminAccessModal } from "./admin-access-modal";
 
 interface GuestLoginProps {
   onLoginClick: () => void;
@@ -9,9 +11,11 @@ interface GuestLoginProps {
   shopName?: string;
   logoUrl?: string | null;
   isKiosk?: boolean;
+  shopId?: string;
 }
 
-export function GuestLogin({ onLoginClick, onGuestClick, shopName, logoUrl, isKiosk = true }: GuestLoginProps) {
+export function GuestLogin({ onLoginClick, onGuestClick, shopName, logoUrl, isKiosk = true, shopId }: GuestLoginProps) {
+  const [showAdminModal, setShowAdminModal] = useState(false);
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted flex items-center justify-center p-4">
       <Card className={cn("w-full", isKiosk ? "max-w-lg" : "max-w-md")}>
@@ -82,8 +86,28 @@ export function GuestLogin({ onLoginClick, onGuestClick, shopName, logoUrl, isKi
           <p className={cn("text-center text-muted-foreground pt-2", isKiosk ? "text-sm" : "text-xs")}>
             Login to save favorites. Guest browsing is limited to viewing products only.
           </p>
+
+          {isKiosk && shopId && (
+            <div className="pt-4 text-center">
+              <button
+                onClick={() => setShowAdminModal(true)}
+                className="text-xs text-muted-foreground/70 hover:text-muted-foreground hover:underline transition-colors"
+                data-testid="link-admin-access"
+              >
+                Admin
+              </button>
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {shopId && (
+        <AdminAccessModal
+          open={showAdminModal}
+          onOpenChange={setShowAdminModal}
+          shopId={shopId}
+        />
+      )}
     </div>
   );
 }
