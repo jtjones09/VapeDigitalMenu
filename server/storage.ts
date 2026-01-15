@@ -11,7 +11,7 @@ import { eq, and, ilike, or, sql, asc, desc, lt } from "drizzle-orm";
 export interface IStorage {
   // Shops
   getShop(id: string): Promise<Shop | undefined>;
-  getShopByUserId(userId: string): Promise<Shop | undefined>;
+  getShopByOwnerId(shopOwnerId: string): Promise<Shop | undefined>;
   createShop(shop: InsertShop): Promise<Shop>;
   updateShop(id: string, shop: Partial<InsertShop>): Promise<Shop | undefined>;
 
@@ -57,8 +57,8 @@ export class DatabaseStorage implements IStorage {
     return shop;
   }
 
-  async getShopByUserId(userId: string): Promise<Shop | undefined> {
-    const [shop] = await db.select().from(shops).where(eq(shops.userId, userId));
+  async getShopByOwnerId(shopOwnerId: string): Promise<Shop | undefined> {
+    const [shop] = await db.select().from(shops).where(eq(shops.shopOwnerId, shopOwnerId));
     return shop;
   }
 

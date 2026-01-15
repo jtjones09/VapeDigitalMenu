@@ -358,7 +358,7 @@ export async function seedDatabase() {
     // Create demo shop and add all products to it
     const [demoShop] = await db.insert(shops).values({
       id: "demo",
-      userId: "demo-user",
+      shopOwnerId: "demo-user",
       shopName: "Demo Vape Shop",
       ownerName: "Demo Owner",
       city: "Los Angeles",

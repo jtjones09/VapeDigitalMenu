@@ -32,12 +32,14 @@ Preferred communication style: Simple, everyday language.
 - **Migrations**: Managed via drizzle-kit with migrations output to `./migrations`
 
 ### Key Data Models
-- **Users/Sessions**: Authentication tables required for Replit Auth
-- **Shops**: Store information linked to authenticated users
+- **ShopOwners/Sessions**: Shop owner authentication tables (renamed from `users` for clarity)
+- **Shops**: Store information linked to shop owners via `shopOwnerId`
+- **Customers**: Customer accounts for menu browsing (separate from shop owners)
 - **Brands**: Product brand catalog
 - **Products/ProductVariants**: Global product catalog with variants
 - **ShopProducts**: Junction table linking products to specific shops
 - **CustomerFavorites**: Customer product favorites per shop
+- **KioskSessions**: Guest/kiosk session tracking with auto-expiry
 
 ### Authentication Flow
 - Supabase handles user authentication via OTP (email codes)
@@ -94,6 +96,15 @@ shared/           # Shared code between client and server
 ## Recent Changes
 
 ### January 2026
+- **Renamed `users` table to `shop_owners`** for clarity
+  - Database: `users` → `shop_owners` table
+  - Database: `shops.user_id` → `shops.shop_owner_id` column
+  - Code: All references updated (`getShopByOwnerId`, `shopOwners`, `ShopOwner` type)
+  - Clear separation: `shop_owners` for admins, `customers` for menu users
+- Added kiosk mode admin access feature for shop owners
+  - Discreet "Admin" link in guest login screen
+  - Two-step email OTP verification against shop owner
+  - Verifies email owns specific shop via INNER JOIN
 - Added age verification system for customers (18+ requirement)
   - New `customers` table for storing customer profiles and age verification status
   - Age verification modal collects first name, last name, and date of birth

@@ -13,9 +13,9 @@ export const sessions = pgTable(
   (table) => [index("IDX_session_expire").on(table.expire)]
 );
 
-// User storage table.
-// (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
-export const users = pgTable("users", {
+// Shop owner storage table.
+// (IMPORTANT) This table is mandatory for authentication, don't drop it.
+export const shopOwners = pgTable("shop_owners", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: varchar("email").unique(),
   firstName: varchar("first_name"),
@@ -25,5 +25,5 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export type UpsertUser = typeof users.$inferInsert;
-export type User = typeof users.$inferSelect;
+export type UpsertShopOwner = typeof shopOwners.$inferInsert;
+export type ShopOwner = typeof shopOwners.$inferSelect;

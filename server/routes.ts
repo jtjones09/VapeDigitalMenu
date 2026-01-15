@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { isAuthenticated, type AuthenticatedRequest } from "./auth/supabase";
-import { insertShopSchema, insertShopProductSchema, insertCustomerFavoriteSchema, customers, insertKioskSessionSchema, shops, users } from "@shared/schema";
+import { insertShopSchema, insertShopProductSchema, insertCustomerFavoriteSchema, customers, insertKioskSessionSchema, shops, shopOwners } from "@shared/schema";
 import { z } from "zod";
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
@@ -13,11 +13,11 @@ export async function registerRoutes(
 ): Promise<Server> {
   // ============ SHOPS ============
   
-  // Get current user's shop
+  // Get current shop owner's shop
   app.get("/api/shops/my", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
-      const userId = req.userId!;
-      const shop = await storage.getShopByUserId(userId);
+      const shopOwnerId = req.userId!;
+      const shop = await storage.getShopByOwnerId(shopOwnerId);
       if (!shop) {
         return res.status(404).json({ message: "Shop not found" });
       }
@@ -31,16 +31,16 @@ export async function registerRoutes(
   // Create shop
   app.post("/api/shops", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
-      const userId = req.userId!;
+      const shopOwnerId = req.userId!;
       
-      const existingShop = await storage.getShopByUserId(userId);
+      const existingShop = await storage.getShopByOwnerId(shopOwnerId);
       if (existingShop) {
         return res.status(400).json({ message: "Shop already exists" });
       }
 
       const data = insertShopSchema.parse({
         ...req.body,
-        userId,
+        shopOwnerId,
         isOnboarded: true,
       });
 
@@ -58,8 +58,8 @@ export async function registerRoutes(
   // Update shop
   app.patch("/api/shops/my", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
-      const userId = req.userId!;
-      const shop = await storage.getShopByUserId(userId);
+      const shopOwnerId = req.userId!;
+      const shop = await storage.getShopByOwnerId(shopOwnerId);
       
       if (!shop) {
         return res.status(404).json({ message: "Shop not found" });
@@ -124,8 +124,8 @@ export async function registerRoutes(
   // Get current shop's products
   app.get("/api/shops/my/products", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
-      const userId = req.userId!;
-      const shop = await storage.getShopByUserId(userId);
+      const shopOwnerId = req.userId!;
+      const shop = await storage.getShopByOwnerId(shopOwnerId);
       
       if (!shop) {
         return res.status(404).json({ message: "Shop not found" });
@@ -142,8 +142,8 @@ export async function registerRoutes(
   // Add product to shop menu
   app.post("/api/shops/my/products", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
-      const userId = req.userId!;
-      const shop = await storage.getShopByUserId(userId);
+      const shopOwnerId = req.userId!;
+      const shop = await storage.getShopByOwnerId(shopOwnerId);
       
       if (!shop) {
         return res.status(404).json({ message: "Shop not found" });
@@ -175,8 +175,8 @@ export async function registerRoutes(
   // Update shop product
   app.patch("/api/shops/my/products/:id", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
-      const userId = req.userId!;
-      const shop = await storage.getShopByUserId(userId);
+      const shopOwnerId = req.userId!;
+      const shop = await storage.getShopByOwnerId(shopOwnerId);
       
       if (!shop) {
         return res.status(404).json({ message: "Shop not found" });
@@ -193,8 +193,8 @@ export async function registerRoutes(
   // Remove product from shop menu
   app.delete("/api/shops/my/products/:productId", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
-      const userId = req.userId!;
-      const shop = await storage.getShopByUserId(userId);
+      const shopOwnerId = req.userId!;
+      const shop = await storage.getShopByOwnerId(shopOwnerId);
       
       if (!shop) {
         return res.status(404).json({ message: "Shop not found" });
@@ -211,8 +211,8 @@ export async function registerRoutes(
   // Reorder shop products
   app.put("/api/shops/my/products/reorder", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
-      const userId = req.userId!;
-      const shop = await storage.getShopByUserId(userId);
+      const shopOwnerId = req.userId!;
+      const shop = await storage.getShopByOwnerId(shopOwnerId);
       
       if (!shop) {
         return res.status(404).json({ message: "Shop not found" });
@@ -442,8 +442,8 @@ export async function registerRoutes(
   // Check if current user is a shop owner
   app.get("/api/auth/is-shop-owner", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
-      const userId = req.userId!;
-      const shop = await storage.getShopByUserId(userId);
+      const shopOwnerId = req.userId!;
+      const shop = await storage.getShopByOwnerId(shopOwnerId);
       res.json({ isShopOwner: !!shop });
     } catch (error) {
       console.error("Error checking shop owner:", error);
@@ -627,16 +627,16 @@ export async function registerRoutes(
       // Uses INNER JOIN to ensure BOTH conditions are true
       const result = await db
         .select({
-          userId: users.id,
-          userEmail: users.email,
+          shopOwnerId: shopOwners.id,
+          shopOwnerEmail: shopOwners.email,
           shopId: shops.id,
           shopName: shops.shopName,
         })
-        .from(users)
-        .innerJoin(shops, eq(shops.userId, users.id))
+        .from(shopOwners)
+        .innerJoin(shops, eq(shops.shopOwnerId, shopOwners.id))
         .where(
           and(
-            eq(users.email, email),
+            eq(shopOwners.email, email),
             eq(shops.id, shopId)
           )
         )
@@ -654,7 +654,7 @@ export async function registerRoutes(
 
       res.json({ 
         authorized: true, 
-        email: shopOwner.userEmail,
+        email: shopOwner.shopOwnerEmail,
         shopName: shopOwner.shopName,
       });
     } catch (error: any) {

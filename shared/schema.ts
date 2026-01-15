@@ -9,7 +9,7 @@ export * from "./models/auth";
 // ============ SHOPS ============
 export const shops = pgTable("shops", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull(),
+  shopOwnerId: varchar("shop_owner_id").notNull(),
   shopName: varchar("shop_name", { length: 255 }).notNull(),
   ownerName: varchar("owner_name", { length: 255 }),
   phone: varchar("phone", { length: 50 }),

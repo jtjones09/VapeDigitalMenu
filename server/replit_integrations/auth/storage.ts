@@ -1,33 +1,33 @@
-import { users, type User, type UpsertUser } from "@shared/models/auth";
+import { shopOwners, type ShopOwner, type UpsertShopOwner } from "@shared/models/auth";
 import { db } from "../../db";
 import { eq } from "drizzle-orm";
 
 // Interface for auth storage operations
-// (IMPORTANT) These user operations are mandatory for Replit Auth.
+// (IMPORTANT) These operations are mandatory for shop owner authentication.
 export interface IAuthStorage {
-  getUser(id: string): Promise<User | undefined>;
-  upsertUser(user: UpsertUser): Promise<User>;
+  getShopOwner(id: string): Promise<ShopOwner | undefined>;
+  upsertShopOwner(shopOwner: UpsertShopOwner): Promise<ShopOwner>;
 }
 
 class AuthStorage implements IAuthStorage {
-  async getUser(id: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user;
+  async getShopOwner(id: string): Promise<ShopOwner | undefined> {
+    const [owner] = await db.select().from(shopOwners).where(eq(shopOwners.id, id));
+    return owner;
   }
 
-  async upsertUser(userData: UpsertUser): Promise<User> {
-    const [user] = await db
-      .insert(users)
-      .values(userData)
+  async upsertShopOwner(ownerData: UpsertShopOwner): Promise<ShopOwner> {
+    const [owner] = await db
+      .insert(shopOwners)
+      .values(ownerData)
       .onConflictDoUpdate({
-        target: users.id,
+        target: shopOwners.id,
         set: {
-          ...userData,
+          ...ownerData,
           updatedAt: new Date(),
         },
       })
       .returning();
-    return user;
+    return owner;
   }
 }
 
