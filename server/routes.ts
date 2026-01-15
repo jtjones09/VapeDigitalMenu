@@ -338,6 +338,29 @@ export async function registerRoutes(
 
   // ============ CUSTOMER PROFILE & AGE VERIFICATION ============
 
+  // Check if customer exists by email (public - used before OTP)
+  app.post("/api/customers/check-email", async (req, res) => {
+    try {
+      const schema = z.object({
+        email: z.string().email("Invalid email address"),
+      });
+
+      const { email } = schema.parse(req.body);
+      
+      const customer = await db.query.customers.findFirst({
+        where: eq(customers.email, email.toLowerCase()),
+      });
+
+      res.json({ exists: !!customer });
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      console.error("Error checking customer email:", error);
+      res.status(500).json({ message: "Failed to check email" });
+    }
+  });
+
   // Get current customer profile
   app.get("/api/customers/me", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {

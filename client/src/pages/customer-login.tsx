@@ -12,6 +12,7 @@ import { Mail, ArrowRight, Loader2, ArrowLeft, User } from "lucide-react";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
 interface CustomerFormData {
+  email: string;
   firstName: string;
   lastName: string;
   dateOfBirth: string;
@@ -24,13 +25,15 @@ export default function CustomerLoginPage() {
   const redirectUrl = new URLSearchParams(searchParams).get("redirect") || "/";
   const { toast } = useToast();
   
-  const [step, setStep] = useState<"email" | "verify" | "signup">("email");
+  // Flow: email -> (if new user: signup form -> verify) or (if existing: verify)
+  const [step, setStep] = useState<"email" | "signup" | "verify">("email");
+  const [isNewUser, setIsNewUser] = useState(false);
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
-  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   
   const [formData, setFormData] = useState<CustomerFormData>({
+    email: "",
     firstName: "",
     lastName: "",
     dateOfBirth: "",
@@ -41,30 +44,40 @@ export default function CustomerLoginPage() {
     setFormData(prev => ({ ...prev, [field]: e.target.value }));
   };
 
-  const handleSendOTP = async (e: React.FormEvent) => {
+  // Step 1: Check if email exists
+  const handleCheckEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) return;
 
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          shouldCreateUser: true,
-        },
+      const response = await fetch("/api/customers/check-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.toLowerCase() }),
       });
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error("Failed to check email");
+      }
 
-      setStep("verify");
-      toast({
-        title: "Check your email",
-        description: "We've sent you a 6-digit verification code.",
-      });
+      const { exists } = await response.json();
+
+      if (exists) {
+        // Existing user - send OTP directly
+        setIsNewUser(false);
+        await sendOTP(email);
+        setStep("verify");
+      } else {
+        // New user - show signup form
+        setIsNewUser(true);
+        setFormData(prev => ({ ...prev, email }));
+        setStep("signup");
+      }
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to send verification code",
+        description: error.message || "Something went wrong",
         variant: "destructive",
       });
     } finally {
@@ -72,80 +85,23 @@ export default function CustomerLoginPage() {
     }
   };
 
-  const handleVerifyOTP = async (code: string) => {
-    if (code.length !== 6) return;
+  const sendOTP = async (emailAddress: string) => {
+    const { error } = await supabase.auth.signInWithOtp({
+      email: emailAddress,
+      options: {
+        shouldCreateUser: true,
+      },
+    });
 
-    setIsLoading(true);
-    try {
-      const { error: verifyError, data } = await supabase.auth.verifyOtp({
-        email,
-        token: code,
-        type: "email",
-      });
+    if (error) throw error;
 
-      if (verifyError) throw verifyError;
-
-      const token = data.session?.access_token;
-      if (!token) {
-        throw new Error("Failed to get authentication token");
-      }
-      
-      setAccessToken(token);
-
-      // Check if customer profile already exists
-      const checkRes = await fetch("/api/customers/me", {
-        headers: { Authorization: `Bearer ${token}` },
-        credentials: "include",
-      });
-      
-      if (checkRes.status === 404) {
-        // New customer - show signup form
-        setStep("signup");
-        setIsLoading(false);
-      } else {
-        // Existing customer - go to menu
-        await queryClient.invalidateQueries();
-        toast({
-          title: "Welcome back!",
-          description: "You've successfully signed in.",
-        });
-        setTimeout(() => {
-          setLocation(redirectUrl);
-        }, 100);
-      }
-    } catch (error: any) {
-      toast({
-        title: "Invalid code",
-        description: error.message || "Please check your code and try again",
-        variant: "destructive",
-      });
-      setOtp("");
-      setIsLoading(false);
-    }
+    toast({
+      title: "Check your email",
+      description: "We've sent you a 6-digit verification code.",
+    });
   };
 
-  const handleOTPChange = (value: string) => {
-    setOtp(value);
-    if (value.length === 6) {
-      handleVerifyOTP(value);
-    }
-  };
-
-  const calculateAge = (dob: string): number => {
-    const parts = dob.split('-');
-    const year = parseInt(parts[0], 10);
-    const month = parseInt(parts[1], 10) - 1;
-    const day = parseInt(parts[2], 10);
-    const birthDate = new Date(year, month, day);
-    const today = new Date();
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
-    return age;
-  };
-
+  // Step 2 (new users): Submit signup form and send OTP
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -179,35 +135,102 @@ export default function CustomerLoginPage() {
 
     setIsLoading(true);
     try {
-      await apiRequest("POST", "/api/customers/verify-age", {
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        dateOfBirth: formData.dateOfBirth,
-      }, accessToken!);
+      // Store form data and send OTP
+      await sendOTP(formData.email);
+      setStep("verify");
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send verification code",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const calculateAge = (dob: string): number => {
+    const parts = dob.split('-');
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    const birthDate = new Date(year, month, day);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
+  // Step 3: Verify OTP
+  const handleVerifyOTP = async (code: string) => {
+    if (code.length !== 6) return;
+
+    setIsLoading(true);
+    try {
+      const verifyEmail = isNewUser ? formData.email : email;
+      
+      const { error: verifyError, data } = await supabase.auth.verifyOtp({
+        email: verifyEmail,
+        token: code,
+        type: "email",
+      });
+
+      if (verifyError) throw verifyError;
+
+      const token = data.session?.access_token;
+      if (!token) {
+        throw new Error("Failed to get authentication token");
+      }
+
+      // For new users, create their profile
+      if (isNewUser) {
+        await apiRequest("POST", "/api/customers/verify-age", {
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          dateOfBirth: formData.dateOfBirth,
+        }, token);
+
+        toast({
+          title: "Welcome!",
+          description: "Your account has been created successfully.",
+        });
+      } else {
+        toast({
+          title: "Welcome back!",
+          description: "You've successfully signed in.",
+        });
+      }
 
       await queryClient.invalidateQueries();
-
-      toast({
-        title: "Welcome!",
-        description: "Your account has been created successfully.",
-      });
-      
       setTimeout(() => {
         setLocation(redirectUrl);
       }, 100);
     } catch (error: any) {
       toast({
-        title: "Error",
-        description: error.message || "Something went wrong",
+        title: "Invalid code",
+        description: error.message || "Please check your code and try again",
         variant: "destructive",
       });
+      setOtp("");
       setIsLoading(false);
+    }
+  };
+
+  const handleOTPChange = (value: string) => {
+    setOtp(value);
+    if (value.length === 6) {
+      handleVerifyOTP(value);
     }
   };
 
   const maxDate = new Date();
   maxDate.setFullYear(maxDate.getFullYear() - 18);
   const maxDateString = maxDate.toISOString().split('T')[0];
+
+  const currentEmail = isNewUser ? formData.email : email;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted flex items-center justify-center p-4">
@@ -231,7 +254,7 @@ export default function CustomerLoginPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleSendOTP} className="space-y-4">
+              <form onSubmit={handleCheckEmail} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="email">Email Address</Label>
                   <div className="relative">
@@ -253,7 +276,7 @@ export default function CustomerLoginPage() {
                   {isLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Sending code...
+                      Checking...
                     </>
                   ) : (
                     <>
@@ -267,72 +290,12 @@ export default function CustomerLoginPage() {
           </>
         )}
 
-        {step === "verify" && (
-          <>
-            <CardHeader className="text-center space-y-2 pt-12">
-              <CardTitle className="text-2xl font-bold">Verify Your Email</CardTitle>
-              <CardDescription>
-                Enter the verification code sent to your email
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Verification Code</Label>
-                  <div className="flex justify-center">
-                    <InputOTP
-                      value={otp}
-                      onChange={handleOTPChange}
-                      maxLength={6}
-                      disabled={isLoading}
-                      data-testid="input-otp"
-                    >
-                      <InputOTPGroup>
-                        <InputOTPSlot index={0} />
-                        <InputOTPSlot index={1} />
-                        <InputOTPSlot index={2} />
-                        <InputOTPSlot index={3} />
-                        <InputOTPSlot index={4} />
-                        <InputOTPSlot index={5} />
-                      </InputOTPGroup>
-                    </InputOTP>
-                  </div>
-                  <p className="text-sm text-muted-foreground text-center">
-                    We sent a code to {email}
-                  </p>
-                </div>
-                
-                {isLoading && (
-                  <div className="flex items-center justify-center gap-2 text-muted-foreground">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Verifying...</span>
-                  </div>
-                )}
-
-                <div className="text-center">
-                  <Button
-                    variant="ghost"
-                    onClick={() => {
-                      setStep("email");
-                      setOtp("");
-                    }}
-                    disabled={isLoading}
-                    data-testid="button-change-email"
-                  >
-                    Use a different email
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </>
-        )}
-
         {step === "signup" && (
           <>
             <CardHeader className="text-center space-y-2 pt-12">
-              <CardTitle className="text-2xl font-bold">Complete Your Profile</CardTitle>
+              <CardTitle className="text-2xl font-bold">Create Your Account</CardTitle>
               <CardDescription>
-                Just a few more details to create your account
+                Complete your profile to continue
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -340,7 +303,7 @@ export default function CustomerLoginPage() {
                 <div className="p-3 bg-muted rounded-md">
                   <p className="text-sm">
                     <span className="text-muted-foreground">Email: </span>
-                    <span className="font-medium">{email}</span>
+                    <span className="font-medium">{formData.email}</span>
                   </p>
                 </div>
 
@@ -406,17 +369,98 @@ export default function CustomerLoginPage() {
                   </Label>
                 </div>
 
-                <Button type="submit" className="w-full" disabled={isLoading} data-testid="button-create-account">
+                <Button type="submit" className="w-full" disabled={isLoading} data-testid="button-send-code">
                   {isLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Creating account...
+                      Sending code...
                     </>
                   ) : (
-                    "Create Account"
+                    <>
+                      Send Verification Code
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </>
                   )}
                 </Button>
+
+                <div className="text-center">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      setStep("email");
+                      setFormData({ email: "", firstName: "", lastName: "", dateOfBirth: "", agreedToTerms: false });
+                    }}
+                    disabled={isLoading}
+                    data-testid="button-back-to-email"
+                  >
+                    Use a different email
+                  </Button>
+                </div>
               </form>
+            </CardContent>
+          </>
+        )}
+
+        {step === "verify" && (
+          <>
+            <CardHeader className="text-center space-y-2 pt-12">
+              <CardTitle className="text-2xl font-bold">Verify Your Email</CardTitle>
+              <CardDescription>
+                Enter the verification code sent to your email
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Verification Code</Label>
+                  <div className="flex justify-center">
+                    <InputOTP
+                      value={otp}
+                      onChange={handleOTPChange}
+                      maxLength={6}
+                      disabled={isLoading}
+                      data-testid="input-otp"
+                    >
+                      <InputOTPGroup>
+                        <InputOTPSlot index={0} />
+                        <InputOTPSlot index={1} />
+                        <InputOTPSlot index={2} />
+                        <InputOTPSlot index={3} />
+                        <InputOTPSlot index={4} />
+                        <InputOTPSlot index={5} />
+                      </InputOTPGroup>
+                    </InputOTP>
+                  </div>
+                  <p className="text-sm text-muted-foreground text-center">
+                    We sent a code to {currentEmail}
+                  </p>
+                </div>
+                
+                {isLoading && (
+                  <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Verifying...</span>
+                  </div>
+                )}
+
+                <div className="text-center">
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setStep("email");
+                      setOtp("");
+                      setEmail("");
+                      setFormData({ email: "", firstName: "", lastName: "", dateOfBirth: "", agreedToTerms: false });
+                      setIsNewUser(false);
+                    }}
+                    disabled={isLoading}
+                    data-testid="button-change-email"
+                  >
+                    Use a different email
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </>
         )}
