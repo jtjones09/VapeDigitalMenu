@@ -18,7 +18,8 @@ import {
   Plus,
   ArrowRight,
 } from "lucide-react";
-import type { Shop, ShopProductWithDetails } from "@shared/schema";
+import { useShop } from "@/contexts/shop-context";
+import type { ShopProductWithDetails } from "@shared/schema";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,21 +36,19 @@ export default function MyMenu() {
   const queryClient = useQueryClient();
   const [deleteProductId, setDeleteProductId] = useState<string | null>(null);
 
-  const { data: shop } = useQuery<Shop>({
-    queryKey: ["/api/shops/my"],
-  });
+  const { currentShop: shop } = useShop();
 
   const { data: menuProducts, isLoading } = useQuery<ShopProductWithDetails[]>({
-    queryKey: ["/api/shops/my/products"],
+    queryKey: ["/api/shops", shop?.id, "products"],
     enabled: !!shop,
   });
 
   const toggleActiveMutation = useMutation({
     mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
-      await apiRequest("PATCH", `/api/shops/my/products/${id}`, { isActive });
+      await apiRequest("PATCH", `/api/shops/${shop?.id}/products/${id}`, { isActive });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/shops/my/products"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/shops", shop?.id, "products"] });
     },
     onError: (error: Error) => {
       toast({
@@ -62,10 +61,10 @@ export default function MyMenu() {
 
   const removeProductMutation = useMutation({
     mutationFn: async (productId: string) => {
-      await apiRequest("DELETE", `/api/shops/my/products/${productId}`);
+      await apiRequest("DELETE", `/api/shops/${shop?.id}/products/${productId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/shops/my/products"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/shops", shop?.id, "products"] });
       toast({
         title: "Product removed",
         description: "The product has been removed from your menu.",
@@ -83,7 +82,7 @@ export default function MyMenu() {
 
   const reorderMutation = useMutation({
     mutationFn: async (productIds: string[]) => {
-      await apiRequest("PUT", "/api/shops/my/products/reorder", { productIds });
+      await apiRequest("PUT", `/api/shops/${shop?.id}/products/reorder`, { productIds });
     },
     onError: (error: Error) => {
       toast({
@@ -111,7 +110,7 @@ export default function MyMenu() {
     const [removed] = newProducts.splice(dragIndex, 1);
     newProducts.splice(dropIndex, 0, removed);
 
-    queryClient.setQueryData(["/api/shops/my/products"], newProducts);
+    queryClient.setQueryData(["/api/shops", shop?.id, "products"], newProducts);
     reorderMutation.mutate(newProducts.map((p) => p.productId));
   };
 

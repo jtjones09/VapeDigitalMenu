@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { InstallPrompt } from "@/components/install-prompt";
+import { ShopProvider } from "@/contexts/shop-context";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import LoginPage from "@/pages/auth/login";
@@ -17,6 +18,7 @@ import Products from "@/pages/admin/products";
 import MyMenu from "@/pages/admin/my-menu";
 import Setup from "@/pages/admin/setup";
 import Settings from "@/pages/admin/settings";
+import CreateShop from "@/pages/admin/create-shop";
 import Menu from "@/pages/menu/index";
 import ProductDetail from "@/pages/menu/product";
 import type { Shop } from "@shared/schema";
@@ -60,14 +62,17 @@ function AdminRoutes() {
   }
 
   return (
-    <Switch>
-      <Route path="/admin" component={Dashboard} />
-      <Route path="/admin/products" component={Products} />
-      <Route path="/admin/my-menu" component={MyMenu} />
-      <Route path="/admin/setup" component={Setup} />
-      <Route path="/admin/settings" component={Settings} />
-      <Route component={Dashboard} />
-    </Switch>
+    <ShopProvider>
+      <Switch>
+        <Route path="/admin" component={Dashboard} />
+        <Route path="/admin/products" component={Products} />
+        <Route path="/admin/my-menu" component={MyMenu} />
+        <Route path="/admin/setup" component={Setup} />
+        <Route path="/admin/settings" component={Settings} />
+        <Route path="/admin/create-shop" component={CreateShop} />
+        <Route component={Dashboard} />
+      </Switch>
+    </ShopProvider>
   );
 }
 

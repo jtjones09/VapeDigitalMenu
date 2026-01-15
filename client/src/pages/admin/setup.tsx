@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import { AdminLayout } from "@/components/admin-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,16 +15,14 @@ import {
   Check,
 } from "lucide-react";
 import { useState } from "react";
-import type { Shop } from "@shared/schema";
+import { useShop } from "@/contexts/shop-context";
 
 export default function Setup() {
   const { toast } = useToast();
   const [copiedQr, setCopiedQr] = useState(false);
   const [copiedKiosk, setCopiedKiosk] = useState(false);
 
-  const { data: shop, isLoading } = useQuery<Shop>({
-    queryKey: ["/api/shops/my"],
-  });
+  const { currentShop: shop, isLoading } = useShop();
 
   const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
   const menuUrl = shop ? `${baseUrl}/menu/${shop.id}` : "";

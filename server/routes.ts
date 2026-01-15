@@ -13,29 +13,43 @@ export async function registerRoutes(
 ): Promise<Server> {
   // ============ SHOPS ============
   
-  // Get current shop owner's shop
+  // Get all shops for the authenticated owner
+  app.get("/api/shops/list", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+    try {
+      const shopOwnerId = req.userId!;
+      const allShops = await storage.getShopsByOwnerId(shopOwnerId);
+      res.json(allShops);
+    } catch (error) {
+      console.error("Error fetching shops:", error);
+      res.status(500).json({ message: "Failed to fetch shops" });
+    }
+  });
+
+  // Get current shop owner's shop (backward compatibility - returns first shop)
   app.get("/api/shops/my", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
       const shopOwnerId = req.userId!;
-      const shop = await storage.getShopByOwnerId(shopOwnerId);
-      if (!shop) {
+      const allShops = await storage.getShopsByOwnerId(shopOwnerId);
+      
+      if (allShops.length === 0) {
         return res.status(404).json({ message: "Shop not found" });
       }
-      res.json(shop);
+      
+      res.json(allShops[0]);
     } catch (error) {
       console.error("Error fetching shop:", error);
       res.status(500).json({ message: "Failed to fetch shop" });
     }
   });
 
-  // Create shop
+  // Create shop (first shop during onboarding)
   app.post("/api/shops", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
       const shopOwnerId = req.userId!;
       
       const existingShop = await storage.getShopByOwnerId(shopOwnerId);
       if (existingShop) {
-        return res.status(400).json({ message: "Shop already exists" });
+        return res.status(400).json({ message: "Shop already exists. Use /api/shops/create for additional shops." });
       }
 
       const data = insertShopSchema.parse({
@@ -45,6 +59,45 @@ export async function registerRoutes(
       });
 
       const shop = await storage.createShop(data);
+      res.status(201).json(shop);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      console.error("Error creating shop:", error);
+      res.status(500).json({ message: "Failed to create shop" });
+    }
+  });
+
+  // Create additional shop (multi-shop support)
+  app.post("/api/shops/create", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+    try {
+      const shopOwnerId = req.userId!;
+
+      const schema = z.object({
+        shopName: z.string().min(1, "Shop name required"),
+        ownerName: z.string().optional(),
+        phone: z.string().optional(),
+        address: z.string().optional(),
+        city: z.string().optional(),
+        state: z.string().optional(),
+        zip: z.string().optional(),
+      });
+
+      const validated = schema.parse(req.body);
+
+      const shop = await storage.createShop({
+        shopOwnerId,
+        shopName: validated.shopName,
+        ownerName: validated.ownerName || null,
+        phone: validated.phone || null,
+        address: validated.address || null,
+        city: validated.city || null,
+        state: validated.state || null,
+        zip: validated.zip || null,
+        isOnboarded: true,
+      });
+
       res.status(201).json(shop);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -121,7 +174,143 @@ export async function registerRoutes(
 
   // ============ SHOP PRODUCTS (Menu Management) ============
 
-  // Get current shop's products
+  // Helper to verify shop ownership
+  async function verifyShopOwnership(shopId: string, shopOwnerId: string): Promise<boolean> {
+    const shop = await storage.getShop(shopId);
+    return shop?.shopOwnerId === shopOwnerId;
+  }
+
+  // Get specific shop's products (multi-shop support)
+  app.get("/api/shops/:shopId/products", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+    try {
+      const shopOwnerId = req.userId!;
+      const { shopId } = req.params;
+      
+      if (!(await verifyShopOwnership(shopId, shopOwnerId))) {
+        return res.status(403).json({ message: "Not authorized to access this shop" });
+      }
+
+      const products = await storage.getShopProducts(shopId);
+      res.json(products);
+    } catch (error) {
+      console.error("Error fetching shop products:", error);
+      res.status(500).json({ message: "Failed to fetch shop products" });
+    }
+  });
+
+  // Add product to specific shop menu
+  app.post("/api/shops/:shopId/products", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+    try {
+      const shopOwnerId = req.userId!;
+      const { shopId } = req.params;
+      
+      if (!(await verifyShopOwnership(shopId, shopOwnerId))) {
+        return res.status(403).json({ message: "Not authorized to access this shop" });
+      }
+
+      const { productId } = req.body;
+      if (!productId) {
+        return res.status(400).json({ message: "Product ID required" });
+      }
+
+      const exists = await storage.isProductInShop(shopId, productId);
+      if (exists) {
+        return res.status(400).json({ message: "Product already in menu" });
+      }
+
+      const shopProduct = await storage.addProductToShop({
+        shopId,
+        productId,
+        isActive: true,
+      });
+
+      res.status(201).json(shopProduct);
+    } catch (error) {
+      console.error("Error adding product to shop:", error);
+      res.status(500).json({ message: "Failed to add product to menu" });
+    }
+  });
+
+  // Update shop product
+  app.patch("/api/shops/:shopId/products/:id", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+    try {
+      const shopOwnerId = req.userId!;
+      const { shopId } = req.params;
+      
+      if (!(await verifyShopOwnership(shopId, shopOwnerId))) {
+        return res.status(403).json({ message: "Not authorized to access this shop" });
+      }
+
+      const updated = await storage.updateShopProduct(req.params.id, req.body);
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating shop product:", error);
+      res.status(500).json({ message: "Failed to update product" });
+    }
+  });
+
+  // Remove product from shop menu
+  app.delete("/api/shops/:shopId/products/:productId", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+    try {
+      const shopOwnerId = req.userId!;
+      const { shopId, productId } = req.params;
+      
+      if (!(await verifyShopOwnership(shopId, shopOwnerId))) {
+        return res.status(403).json({ message: "Not authorized to access this shop" });
+      }
+
+      await storage.removeProductFromShop(shopId, productId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error removing product from shop:", error);
+      res.status(500).json({ message: "Failed to remove product from menu" });
+    }
+  });
+
+  // Reorder shop products
+  app.put("/api/shops/:shopId/products/reorder", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+    try {
+      const shopOwnerId = req.userId!;
+      const { shopId } = req.params;
+      
+      if (!(await verifyShopOwnership(shopId, shopOwnerId))) {
+        return res.status(403).json({ message: "Not authorized to access this shop" });
+      }
+
+      const { productIds } = req.body;
+      if (!Array.isArray(productIds)) {
+        return res.status(400).json({ message: "Product IDs array required" });
+      }
+
+      await storage.reorderShopProducts(shopId, productIds);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error reordering products:", error);
+      res.status(500).json({ message: "Failed to reorder products" });
+    }
+  });
+
+  // Update specific shop (multi-shop support)
+  app.patch("/api/shops/:shopId", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+    try {
+      const shopOwnerId = req.userId!;
+      const { shopId } = req.params;
+      
+      if (!(await verifyShopOwnership(shopId, shopOwnerId))) {
+        return res.status(403).json({ message: "Not authorized to access this shop" });
+      }
+
+      const updatedShop = await storage.updateShop(shopId, req.body);
+      res.json(updatedShop);
+    } catch (error) {
+      console.error("Error updating shop:", error);
+      res.status(500).json({ message: "Failed to update shop" });
+    }
+  });
+
+  // ============ LEGACY ENDPOINTS (Backward compatibility) ============
+
+  // Get current shop's products (legacy - uses first shop)
   app.get("/api/shops/my/products", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
       const shopOwnerId = req.userId!;
@@ -139,7 +328,7 @@ export async function registerRoutes(
     }
   });
 
-  // Add product to shop menu
+  // Add product to shop menu (legacy)
   app.post("/api/shops/my/products", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
       const shopOwnerId = req.userId!;
@@ -172,7 +361,7 @@ export async function registerRoutes(
     }
   });
 
-  // Update shop product
+  // Update shop product (legacy)
   app.patch("/api/shops/my/products/:id", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
       const shopOwnerId = req.userId!;
@@ -190,7 +379,7 @@ export async function registerRoutes(
     }
   });
 
-  // Remove product from shop menu
+  // Remove product from shop menu (legacy)
   app.delete("/api/shops/my/products/:productId", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
       const shopOwnerId = req.userId!;
@@ -208,7 +397,7 @@ export async function registerRoutes(
     }
   });
 
-  // Reorder shop products
+  // Reorder shop products (legacy)
   app.put("/api/shops/my/products/reorder", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
       const shopOwnerId = req.userId!;

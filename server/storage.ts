@@ -12,6 +12,7 @@ export interface IStorage {
   // Shops
   getShop(id: string): Promise<Shop | undefined>;
   getShopByOwnerId(shopOwnerId: string): Promise<Shop | undefined>;
+  getShopsByOwnerId(shopOwnerId: string): Promise<Shop[]>;
   createShop(shop: InsertShop): Promise<Shop>;
   updateShop(id: string, shop: Partial<InsertShop>): Promise<Shop | undefined>;
 
@@ -60,6 +61,10 @@ export class DatabaseStorage implements IStorage {
   async getShopByOwnerId(shopOwnerId: string): Promise<Shop | undefined> {
     const [shop] = await db.select().from(shops).where(eq(shops.shopOwnerId, shopOwnerId));
     return shop;
+  }
+
+  async getShopsByOwnerId(shopOwnerId: string): Promise<Shop[]> {
+    return db.select().from(shops).where(eq(shops.shopOwnerId, shopOwnerId)).orderBy(asc(shops.createdAt));
   }
 
   async createShop(shop: InsertShop): Promise<Shop> {

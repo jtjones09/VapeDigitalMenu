@@ -5,15 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
 import { Package, List, QrCode, ArrowRight, TrendingUp, Eye } from "lucide-react";
-import type { Shop, ShopProduct } from "@shared/schema";
+import { useShop } from "@/contexts/shop-context";
+import type { ShopProduct } from "@shared/schema";
 
 export default function Dashboard() {
-  const { data: shop, isLoading: shopLoading } = useQuery<Shop>({
-    queryKey: ["/api/shops/my"],
-  });
+  const { currentShop: shop, isLoading: shopLoading } = useShop();
 
   const { data: menuProducts, isLoading: menuLoading } = useQuery<ShopProduct[]>({
-    queryKey: ["/api/shops/my/products"],
+    queryKey: ["/api/shops", shop?.id, "products"],
     enabled: !!shop,
   });
 

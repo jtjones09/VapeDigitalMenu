@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -13,7 +13,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Store, User, Save, Loader2 } from "lucide-react";
-import type { Shop } from "@shared/schema";
+import { useShop } from "@/contexts/shop-context";
 
 const settingsSchema = z.object({
   shopName: z.string().min(2, "Shop name must be at least 2 characters"),
@@ -33,9 +33,7 @@ export default function Settings() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
-  const { data: shop, isLoading } = useQuery<Shop>({
-    queryKey: ["/api/shops/my"],
-  });
+  const { currentShop: shop, isLoading } = useShop();
 
   const form = useForm<SettingsFormValues>({
     resolver: zodResolver(settingsSchema),
@@ -63,10 +61,10 @@ export default function Settings() {
 
   const updateShopMutation = useMutation({
     mutationFn: async (data: SettingsFormValues) => {
-      await apiRequest("PATCH", "/api/shops/my", data);
+      await apiRequest("PATCH", `/api/shops/${shop?.id}`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/shops/my"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/shops/list"] });
       toast({
         title: "Settings saved",
         description: "Your shop settings have been updated.",

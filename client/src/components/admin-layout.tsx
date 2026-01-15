@@ -33,6 +33,7 @@ import {
   ChevronUp,
   Smartphone,
 } from "lucide-react";
+import { ShopSelector } from "@/components/shop-selector";
 
 const navItems = [
   { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
@@ -139,8 +140,9 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           </SidebarFooter>
         </Sidebar>
         <div className="flex flex-col flex-1 min-w-0">
-          <header className="flex items-center gap-4 p-4 border-b border-border bg-background sticky top-0 z-10">
+          <header className="flex items-center justify-between gap-4 p-4 border-b border-border bg-background sticky top-0 z-10">
             <SidebarTrigger data-testid="button-sidebar-toggle" />
+            <ShopSelector />
           </header>
           <main className="flex-1 overflow-auto">
             {children}

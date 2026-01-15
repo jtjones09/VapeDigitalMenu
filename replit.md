@@ -96,6 +96,14 @@ shared/           # Shared code between client and server
 ## Recent Changes
 
 ### January 2026
+- **Added multi-shop support** for shop owners
+  - New `GET /api/shops/list` endpoint returns all shops for an owner
+  - New `POST /api/shops/create` endpoint for creating additional shops
+  - ShopProvider context tracks currently selected shop across admin pages
+  - ShopSelector dropdown in admin header for switching between shops
+  - "Create New Shop" page at `/admin/create-shop`
+  - Selected shop persisted to localStorage for session continuity
+  - All admin pages updated to use `useShop()` hook from context
 - **Renamed `users` table to `shop_owners`** for clarity
   - Database: `users` → `shop_owners` table
   - Database: `shops.user_id` → `shops.shop_owner_id` column
@@ -126,6 +134,7 @@ shared/           # Shared code between client and server
 - My Menu page for drag-and-drop menu customization
 - Setup page with QR code generation for customers
 - Settings page for shop configuration and kiosk timeout
+- Multi-shop support: Shop selector in header, create new shops at /admin/create-shop
 
 ### Customer Menu (/menu/:shopId)
 - Product grid with search and category filters

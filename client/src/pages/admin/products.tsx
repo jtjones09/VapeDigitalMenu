@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Search, Plus, Check, Package, Filter } from "lucide-react";
+import { useShop } from "@/contexts/shop-context";
 import type { Product, ProductWithBrand, Shop, ShopProduct } from "@shared/schema";
 
 const productTypes = ["all", "e-liquid", "disposable", "hardware", "accessory"];
@@ -28,9 +29,7 @@ export default function Products() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [flavorFilter, setFlavorFilter] = useState("all");
 
-  const { data: shop } = useQuery<Shop>({
-    queryKey: ["/api/shops/my"],
-  });
+  const { currentShop: shop } = useShop();
 
   const buildProductsQueryKey = () => {
     const params = new URLSearchParams();
@@ -46,7 +45,7 @@ export default function Products() {
   });
 
   const { data: myProducts } = useQuery<ShopProduct[]>({
-    queryKey: ["/api/shops/my/products"],
+    queryKey: ["/api/shops", shop?.id, "products"],
     enabled: !!shop,
   });
 
@@ -54,10 +53,10 @@ export default function Products() {
 
   const addToMenuMutation = useMutation({
     mutationFn: async (productId: string) => {
-      await apiRequest("POST", "/api/shops/my/products", { productId });
+      await apiRequest("POST", `/api/shops/${shop?.id}/products`, { productId });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/shops/my/products"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/shops", shop?.id, "products"] });
       toast({
         title: "Product added",
         description: "The product has been added to your menu.",
@@ -74,10 +73,10 @@ export default function Products() {
 
   const removeFromMenuMutation = useMutation({
     mutationFn: async (productId: string) => {
-      await apiRequest("DELETE", `/api/shops/my/products/${productId}`);
+      await apiRequest("DELETE", `/api/shops/${shop?.id}/products/${productId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/shops/my/products"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/shops", shop?.id, "products"] });
       toast({
         title: "Product removed",
         description: "The product has been removed from your menu.",
