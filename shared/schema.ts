@@ -59,6 +59,7 @@ export const products = pgTable("products", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   brandId: varchar("brand_id").references(() => brands.id),
   productName: varchar("product_name", { length: 255 }).notNull(),
+  sku: varchar("sku", { length: 100 }),
   productType: varchar("product_type", { length: 50 }).notNull(),
   flavorCategory: varchar("flavor_category", { length: 50 }),
   flavorDescription: text("flavor_description"),
