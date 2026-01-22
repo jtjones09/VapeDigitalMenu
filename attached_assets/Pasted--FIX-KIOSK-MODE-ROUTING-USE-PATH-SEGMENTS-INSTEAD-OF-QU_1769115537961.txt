@@ -1,0 +1,288 @@
+# FIX KIOSK MODE ROUTING - USE PATH SEGMENTS INSTEAD OF QUERY PARAMS
+
+## ⚠️ CRITICAL SAFETY RULES
+
+DO NOT:
+- Delete any existing components
+- Break the guided navigation flow
+- Remove any features
+- Truncate any code
+
+DO:
+- Change kiosk mode from query param (?mode=kiosk) to path segment (/kiosk/)
+- Update ALL navigation to preserve kiosk mode
+- Update ALL route definitions
+- Test thoroughly
+
+---
+
+## THE PROBLEM
+
+Current URLs use query params:
+- /menu/abc123?mode=kiosk
+- /menu/abc123/regular?mode=kiosk
+
+Wouter captures query strings incorrectly, breaking navigation.
+
+## THE SOLUTION
+
+Use path segments instead:
+- /menu/kiosk/abc123
+- /menu/kiosk/abc123/regular
+- /menu/kiosk/abc123/regular/fruit
+
+This makes kiosk mode part of the route path, not a query param.
+
+---
+
+## STEP 1: UPDATE ROUTING IN APP.TSX
+
+File: /client/src/App.tsx
+
+FIND the current menu routes (should be around line 75-82):
+```typescript
+<Route path="/menu/:shopId" component={Menu} />
+<Route path="/menu/:shopId/:nicotineType" component={Menu} />
+<Route path="/menu/:shopId/:nicotineType/:flavorCategory" component={Menu} />
+<Route path="/menu/:shopId/product/:productId" component={ProductDetail} />
+```
+
+REPLACE with (DOUBLE the routes - one for each mode):
+```typescript
+{/* Personal mode routes */}
+<Route path="/menu/:shopId" component={Menu} />
+<Route path="/menu/:shopId/:nicotineType" component={Menu} />
+<Route path="/menu/:shopId/:nicotineType/:flavorCategory" component={Menu} />
+<Route path="/menu/:shopId/product/:productId" component={ProductDetail} />
+
+{/* Kiosk mode routes */}
+<Route path="/menu/kiosk/:shopId" component={Menu} />
+<Route path="/menu/kiosk/:shopId/:nicotineType" component={Menu} />
+<Route path="/menu/kiosk/:shopId/:nicotineType/:flavorCategory" component={Menu} />
+<Route path="/menu/kiosk/:shopId/product/:productId" component={ProductDetail} />
+```
+
+---
+
+## STEP 2: UPDATE KIOSK MODE DETECTION
+
+File: /client/src/pages/menu/index.tsx
+
+FIND the current kiosk mode detection (around line 49):
+```typescript
+const searchParams = useSearch();
+const isKioskMode = new URLSearchParams(searchParams).get("mode") === "kiosk";
+```
+
+REPLACE with:
+```typescript
+const [, location] = useLocation();
+const isKioskMode = location.startsWith('/menu/kiosk/');
+```
+
+ADD this import at the top:
+```typescript
+import { useLocation } from "wouter";
+```
+
+---
+
+## STEP 3: UPDATE ALL NAVIGATION CALLS
+
+In the SAME file (/client/src/pages/menu/index.tsx), find ALL instances of navigate() calls.
+
+CREATE a helper function at the top of the component:
+```typescript
+// Helper to build URLs that preserve kiosk mode
+const buildUrl = (path: string) => {
+  const base = isKioskMode ? '/menu/kiosk' : '/menu';
+  return `${base}${path}`;
+};
+```
+
+THEN UPDATE all navigate() calls to use it:
+
+EXAMPLE - Category selection:
+FIND:
+```typescript
+navigate(`/menu/${shopId}/regular`);
+```
+REPLACE:
+```typescript
+navigate(buildUrl(`/${shopId}/regular`));
+```
+
+EXAMPLE - Flavor selection:
+FIND:
+```typescript
+navigate(`/menu/${shopId}/${nicotineType}/${category}`);
+```
+REPLACE:
+```typescript
+navigate(buildUrl(`/${shopId}/${nicotineType}/${category}`));
+```
+
+EXAMPLE - Back to categories:
+FIND:
+```typescript
+navigate(`/menu/${shopId}`);
+```
+REPLACE:
+```typescript
+navigate(buildUrl(`/${shopId}`));
+```
+
+DO THIS FOR EVERY navigate() CALL IN THE FILE.
+
+---
+
+## STEP 4: UPDATE PRODUCT DETAIL PAGE
+
+File: /client/src/pages/menu/product.tsx
+
+ADD the same detection at the top:
+```typescript
+const [, location] = useLocation();
+const isKioskMode = location.startsWith('/menu/kiosk/');
+```
+
+ADD the same helper function:
+```typescript
+const buildUrl = (path: string) => {
+  const base = isKioskMode ? '/menu/kiosk' : '/menu';
+  return `${base}${path}`;
+};
+```
+
+UPDATE any navigate() calls to use buildUrl().
+
+---
+
+## STEP 5: UPDATE GUEST LOGIN COMPONENT
+
+File: /client/src/components/guest-login.tsx
+
+The GuestLogin component receives shopId as a prop and needs to build kiosk URLs.
+
+FIND where it navigates or builds URLs (probably in onLoginClick or onGuestClick callbacks).
+
+UPDATE to detect kiosk mode:
+```typescript
+const [, location] = useLocation();
+const isKioskMode = location.startsWith('/menu/kiosk/');
+```
+
+When passing shopId to other components or building URLs, preserve the kiosk prefix.
+
+---
+
+## STEP 6: UPDATE SETUP PAGE (QR CODE & KIOSK URL)
+
+File: /client/src/pages/admin/setup.tsx
+
+FIND where kiosk URL is generated (around line 32):
+```typescript
+const kioskUrl = shop ? `${baseUrl}/menu/${shop.id}?mode=kiosk` : "";
+```
+
+REPLACE with:
+```typescript
+const kioskUrl = shop ? `${baseUrl}/menu/kiosk/${shop.id}` : "";
+```
+
+The QR code URL should remain as-is (personal mode):
+```typescript
+const menuUrl = shop ? `${baseUrl}/menu/${shop.id}` : "";
+```
+
+---
+
+## STEP 7: UPDATE BREADCRUMBS (IF EXISTS)
+
+File: /client/src/components/menu/breadcrumbs.tsx (if you created this)
+
+FIND any navigation calls in breadcrumb links.
+
+UPDATE to use the buildUrl helper pattern:
+```typescript
+const [, location] = useLocation();
+const isKioskMode = location.startsWith('/menu/kiosk/');
+
+const buildUrl = (path: string) => {
+  const base = isKioskMode ? '/menu/kiosk' : '/menu';
+  return `${base}${path}`;
+};
+```
+
+UPDATE breadcrumb links to use buildUrl().
+
+---
+
+## STEP 8: UPDATE ANY LINK COMPONENTS
+
+Search the ENTIRE /client/src directory for:
+- `to="/menu/`
+- `href="/menu/`
+- `navigate("/menu/`
+
+For EACH instance, determine if it needs to preserve kiosk mode.
+
+If YES, use the buildUrl pattern.
+If NO (like admin links), leave as-is.
+
+---
+
+## TESTING CHECKLIST
+
+After making these changes, test BOTH modes:
+
+PERSONAL MODE:
+- [ ] Visit /menu/abc123 → Landing page loads
+- [ ] Click Regular Nicotine → URL is /menu/abc123/regular
+- [ ] Click Fruit → URL is /menu/abc123/regular/fruit
+- [ ] Click back → URL is /menu/abc123/regular
+- [ ] Click product → URL is /menu/abc123/product/xyz
+- [ ] All navigation works, no ?mode in URL
+
+KIOSK MODE:
+- [ ] Visit /menu/kiosk/abc123 → Landing page loads
+- [ ] Click Regular Nicotine → URL is /menu/kiosk/abc123/regular
+- [ ] Click Fruit → URL is /menu/kiosk/abc123/regular/fruit
+- [ ] Click back → URL is /menu/kiosk/abc123/regular
+- [ ] Click product → URL is /menu/kiosk/abc123/product/xyz
+- [ ] All navigation preserves /kiosk/ prefix
+- [ ] Kiosk UI features work (large buttons, inactivity timer, etc.)
+
+CROSS-MODE:
+- [ ] Refresh page in kiosk mode → Stays in kiosk mode
+- [ ] Copy kiosk URL and paste in new tab → Opens in kiosk mode
+- [ ] Bookmark works for both modes
+- [ ] No console errors in either mode
+
+---
+
+## VERIFICATION QUERIES
+
+After implementation, verify with these checks:
+
+1. Search for "mode=kiosk" in your codebase - should find ZERO results (except maybe in comments)
+2. Search for "/menu/kiosk/" - should find MANY results (in routes and navigation)
+3. Test the kiosk URL from Setup page - should be /menu/kiosk/:shopId format
+
+---
+
+## EXPECTED OUTCOME
+
+BEFORE:
+- Personal: /menu/abc123?mode=undefined
+- Kiosk: /menu/abc123?mode=kiosk ❌ (breaks on navigation)
+
+AFTER:
+- Personal: /menu/abc123
+- Kiosk: /menu/kiosk/abc123 ✅ (works perfectly)
+
+No more query param issues. Navigation is clean and reliable.
+
+---
+
+Good luck! Test thoroughly in BOTH modes before marking complete.
