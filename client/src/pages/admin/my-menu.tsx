@@ -17,9 +17,11 @@ import {
   EyeOff,
   Plus,
   ArrowRight,
+  DollarSign,
+  TrendingUp,
 } from "lucide-react";
 import { useShop } from "@/contexts/shop-context";
-import type { ShopProductWithDetails } from "@shared/schema";
+import type { ShopProductWithDetails, ProductVariant } from "@shared/schema";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +32,42 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+
+function getPricingInfo(variants: ProductVariant[] | undefined) {
+  if (!variants || variants.length === 0) return null;
+  
+  const msrpValues = variants
+    .map(v => v.msrp !== null && v.msrp !== undefined && v.msrp !== '' ? parseFloat(v.msrp) : null)
+    .filter((v): v is number => v !== null && !isNaN(v));
+  const costValues = variants
+    .map(v => v.cost !== null && v.cost !== undefined && v.cost !== '' ? parseFloat(v.cost) : null)
+    .filter((v): v is number => v !== null && !isNaN(v));
+  
+  if (msrpValues.length === 0) return null;
+  
+  const minMsrp = Math.min(...msrpValues);
+  const maxMsrp = Math.max(...msrpValues);
+  
+  let avgMarginPercent: number | null = null;
+  if (costValues.length > 0) {
+    const margins = variants
+      .map(v => {
+        const msrpVal = v.msrp !== null && v.msrp !== undefined && v.msrp !== '' ? parseFloat(v.msrp) : null;
+        const costVal = v.cost !== null && v.cost !== undefined && v.cost !== '' ? parseFloat(v.cost) : null;
+        if (msrpVal !== null && !isNaN(msrpVal) && msrpVal > 0 && costVal !== null && !isNaN(costVal)) {
+          return ((msrpVal - costVal) / msrpVal) * 100;
+        }
+        return null;
+      })
+      .filter((m): m is number => m !== null);
+    
+    if (margins.length > 0) {
+      avgMarginPercent = margins.reduce((a, b) => a + b, 0) / margins.length;
+    }
+  }
+  
+  return { minMsrp, maxMsrp, avgMarginPercent };
+}
 
 export default function MyMenu() {
   const { toast } = useToast();
@@ -211,7 +249,7 @@ export default function MyMenu() {
                     <h3 className="font-semibold truncate" data-testid={`text-menu-product-${item.productId}`}>
                       {item.product?.productName}
                     </h3>
-                    <div className="flex items-center gap-2 mt-1">
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <span className="text-sm text-muted-foreground capitalize">
                         {item.product?.productType}
                       </span>
@@ -225,6 +263,30 @@ export default function MyMenu() {
                       )}
                     </div>
                   </div>
+                  {(() => {
+                    const pricing = getPricingInfo(item.product?.variants);
+                    if (!pricing) return null;
+                    return (
+                      <div className="hidden sm:flex items-center gap-4 text-sm shrink-0" data-testid={`pricing-info-${item.productId}`}>
+                        <div className="flex items-center gap-1 text-muted-foreground" data-testid={`price-range-${item.productId}`}>
+                          <DollarSign className="w-4 h-4" />
+                          <span>
+                            {pricing.minMsrp === pricing.maxMsrp 
+                              ? `$${pricing.minMsrp.toFixed(2)}`
+                              : `$${pricing.minMsrp.toFixed(2)} - $${pricing.maxMsrp.toFixed(2)}`}
+                          </span>
+                        </div>
+                        {pricing.avgMarginPercent !== null && (
+                          <div className="flex items-center gap-1" data-testid={`margin-${item.productId}`}>
+                            <TrendingUp className={`w-4 h-4 ${pricing.avgMarginPercent >= 40 ? 'text-green-500' : pricing.avgMarginPercent >= 20 ? 'text-yellow-500' : 'text-red-500'}`} />
+                            <span className={pricing.avgMarginPercent >= 40 ? 'text-green-600 dark:text-green-400' : pricing.avgMarginPercent >= 20 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}>
+                              {pricing.avgMarginPercent.toFixed(0)}%
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2">
                       {item.isActive ? (
