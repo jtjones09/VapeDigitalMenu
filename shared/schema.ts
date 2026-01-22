@@ -99,6 +99,7 @@ export const productVariants = pgTable("product_variants", {
   bottleSize: varchar("bottle_size", { length: 20 }),
   sku: varchar("sku", { length: 100 }),
   msrp: decimal("msrp", { precision: 10, scale: 2 }),
+  cost: decimal("cost", { precision: 10, scale: 2 }),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
