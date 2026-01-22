@@ -26,11 +26,13 @@ import type { Shop } from "@shared/schema";
 // This fixes wouter not re-rendering when only route params change
 function Menu() {
   const [path] = useLocation();
+  console.log("[Menu Wrapper] Current path:", path, "| Key:", path);
   return <MenuBase key={path} />;
 }
 
 function ProductDetail() {
   const [path] = useLocation();
+  console.log("[ProductDetail Wrapper] Current path:", path);
   return <ProductDetailBase key={path} />;
 }
 
