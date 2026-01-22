@@ -85,8 +85,10 @@ function Router() {
       <Route path="/customer-login" component={CustomerLoginPage} />
       <Route path="/admin" component={AdminRoutes} />
       <Route path="/admin/:rest*" component={AdminRoutes} />
-      <Route path="/menu/:shopId" component={Menu} />
       <Route path="/menu/:shopId/product/:productId" component={ProductDetail} />
+      <Route path="/menu/:shopId" component={Menu} />
+      <Route path="/menu/:shopId/:nicotineType" component={Menu} />
+      <Route path="/menu/:shopId/:nicotineType/:flavorCategory" component={Menu} />
       <Route component={NotFound} />
     </Switch>
   );

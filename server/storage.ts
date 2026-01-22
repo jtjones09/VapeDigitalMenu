@@ -29,7 +29,7 @@ export interface IStorage {
 
   // Shop Products
   getShopProducts(shopId: string): Promise<ShopProductWithDetails[]>;
-  getShopMenuProducts(shopId: string, filters?: { search?: string; type?: string; flavor?: string }): Promise<ProductWithBrand[]>;
+  getShopMenuProducts(shopId: string, filters?: { search?: string; type?: string; flavor?: string; nicotineType?: string; limit?: number }): Promise<ProductWithBrand[]>;
   addProductToShop(shopProduct: InsertShopProduct): Promise<ShopProduct>;
   removeProductFromShop(shopId: string, productId: string): Promise<void>;
   updateShopProduct(id: string, data: Partial<InsertShopProduct>): Promise<ShopProduct | undefined>;
@@ -171,7 +171,7 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
-  async getShopMenuProducts(shopId: string, filters?: { search?: string; type?: string; flavor?: string }): Promise<ProductWithBrand[]> {
+  async getShopMenuProducts(shopId: string, filters?: { search?: string; type?: string; flavor?: string; nicotineType?: string; limit?: number }): Promise<ProductWithBrand[]> {
     const shopProductsList = await db
       .select()
       .from(shopProducts)
@@ -199,8 +199,15 @@ export class DatabaseStorage implements IStorage {
           matches = product.flavorCategory === filters.flavor;
         }
 
+        if (matches && filters?.nicotineType && filters.nicotineType !== "all") {
+          matches = product.nicotineType === filters.nicotineType;
+        }
+
         if (matches) {
           result.push(product);
+          if (filters?.limit && result.length >= filters.limit) {
+            break;
+          }
         }
       }
     }

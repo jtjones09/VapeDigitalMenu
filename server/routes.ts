@@ -425,11 +425,13 @@ export async function registerRoutes(
   // Get shop's public menu
   app.get("/api/shops/:shopId/menu", async (req, res) => {
     try {
-      const { search, type, flavor } = req.query;
+      const { search, type, flavor, nicotineType, limit } = req.query;
       const products = await storage.getShopMenuProducts(req.params.shopId, {
         search: search as string,
         type: type as string,
         flavor: flavor as string,
+        nicotineType: nicotineType as string,
+        limit: limit ? parseInt(limit as string, 10) : undefined,
       });
       res.json(products);
     } catch (error) {

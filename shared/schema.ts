@@ -54,6 +54,8 @@ export type Brand = typeof brands.$inferSelect;
 // ============ PRODUCTS ============
 export const productTypes = ["e-liquid", "disposable", "hardware", "accessory"] as const;
 export const flavorCategories = ["fruit", "dessert", "menthol", "tobacco", "beverage", "candy", "other"] as const;
+export const nicotineTypes = ["regular", "salt", "none"] as const;
+export type NicotineType = typeof nicotineTypes[number];
 
 export const products = pgTable("products", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -62,6 +64,7 @@ export const products = pgTable("products", {
   productType: varchar("product_type", { length: 50 }).notNull(),
   flavorCategory: varchar("flavor_category", { length: 50 }),
   flavorDescription: text("flavor_description"),
+  nicotineType: varchar("nicotine_type", { length: 20 }),
   imageUrl: varchar("image_url", { length: 500 }),
   isCustom: boolean("is_custom").default(false),
   createdByShopId: varchar("created_by_shop_id"),

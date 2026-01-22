@@ -4,19 +4,11 @@ import { useParams, useSearch, Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,15 +27,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Search,
   Heart,
   Package,
-  Filter,
   QrCode,
   Tablet,
   LogIn,
   User,
-  Lock,
   Timer,
   Maximize,
   LogOut,
@@ -52,13 +41,17 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { GuestLogin } from "@/components/guest-login";
+import { CategorySelector } from "@/components/menu/category-selector";
+import { FlavorCategoryGrid } from "@/components/menu/flavor-category-grid";
+import { Breadcrumbs } from "@/components/menu/breadcrumbs";
+import { SearchBar } from "@/components/menu/search-bar";
 import type { Shop, ProductWithBrand, CustomerFavorite } from "@shared/schema";
 
-const flavorCategories = ["all", "fruit", "dessert", "menthol", "tobacco", "beverage", "candy", "other"];
-const productTypes = ["all", "e-liquid", "disposable", "hardware", "accessory"];
+const validNicotineTypes = ["regular", "salt", "all"];
+const validFlavorCategories = ["fruit", "dessert", "menthol", "tobacco", "beverage", "candy", "other", "all"];
 
 export default function Menu() {
-  const params = useParams<{ shopId: string }>();
+  const params = useParams<{ shopId: string; nicotineType?: string; flavorCategory?: string }>();
   const searchParams = useSearch();
   const isKioskMode = new URLSearchParams(searchParams).get("mode") === "kiosk";
   
@@ -68,31 +61,42 @@ export default function Menu() {
   const [, setLocation] = useLocation();
   
   const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState("all");
-  const [flavorFilter, setFlavorFilter] = useState("all");
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [remainingTime, setRemainingTime] = useState<number | null>(null);
   const [lastActivity, setLastActivity] = useState(Date.now());
   const [isGuestMode, setIsGuestMode] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
 
+  const nicotineType = params.nicotineType && validNicotineTypes.includes(params.nicotineType) ? params.nicotineType : undefined;
+  const flavorCategory = params.flavorCategory && validFlavorCategories.includes(params.flavorCategory) ? params.flavorCategory : undefined;
+
+  const isLandingView = !nicotineType;
+  const isFlavorGridView = nicotineType && !flavorCategory && nicotineType !== "all";
+  const isProductListView = nicotineType && (flavorCategory || nicotineType === "all");
+
   const { data: shop, isLoading: shopLoading } = useQuery<Shop>({
     queryKey: ["/api/shops", params.shopId],
     enabled: !!params.shopId,
   });
 
-  const buildMenuQueryKey = () => {
-    const params_arr = new URLSearchParams();
-    if (search) params_arr.set("search", search);
-    if (typeFilter !== "all") params_arr.set("type", typeFilter);
-    if (flavorFilter !== "all") params_arr.set("flavor", flavorFilter);
-    const queryString = params_arr.toString();
-    return [`/api/shops/${params.shopId}/menu${queryString ? `?${queryString}` : ""}`];
+  const buildMenuQueryUrl = () => {
+    const queryParams = new URLSearchParams();
+    if (search) queryParams.set("search", search);
+    if (nicotineType && nicotineType !== "all") queryParams.set("nicotineType", nicotineType);
+    if (flavorCategory && flavorCategory !== "all") queryParams.set("flavor", flavorCategory);
+    queryParams.set("type", "e-liquid");
+    const queryString = queryParams.toString();
+    return `/api/shops/${params.shopId}/menu${queryString ? `?${queryString}` : ""}`;
   };
 
   const { data: products, isLoading: productsLoading } = useQuery<ProductWithBrand[]>({
-    queryKey: buildMenuQueryKey(),
-    enabled: !!params.shopId,
+    queryKey: ["/api/shops", params.shopId, "menu", { nicotineType, flavorCategory, search }],
+    queryFn: async () => {
+      const res = await fetch(buildMenuQueryUrl());
+      if (!res.ok) throw new Error("Failed to fetch products");
+      return res.json();
+    },
+    enabled: !!params.shopId && !!isProductListView,
   });
 
   const { data: favorites } = useQuery<CustomerFavorite[]>({
@@ -165,8 +169,6 @@ export default function Menu() {
     setIsGuestMode(false);
     setSessionId(null);
     setSearch("");
-    setTypeFilter("all");
-    setFlavorFilter("all");
     setLastActivity(Date.now());
     queryClient.invalidateQueries();
   }, [isAuthenticated, signOut, params.shopId, queryClient]);
@@ -268,7 +270,7 @@ export default function Menu() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isKioskMode, shop?.kioskTimeoutMinutes, lastActivity, isAuthenticated, isGuestMode, params.shopId, sessionId, signOut]);
+  }, [isKioskMode, shop?.kioskTimeoutMinutes, lastActivity, isAuthenticated, isGuestMode, params.shopId, sessionId, signOut, setLocation]);
 
   const formatTime = (ms: number) => {
     const minutes = Math.floor(ms / 60000);
@@ -285,6 +287,8 @@ export default function Menu() {
     candy: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
     other: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300",
   };
+
+  const modeParam = isKioskMode ? "?mode=kiosk" : "";
 
   if (shopLoading) {
     return (
@@ -410,129 +414,141 @@ export default function Menu() {
       <main className="max-w-7xl mx-auto px-4 py-6 pb-24">
         <div className="space-y-6">
           <Card className="p-4">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search products..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9"
-                  data-testid="input-search"
-                />
-              </div>
-              <div className="flex gap-3">
-                <Select value={typeFilter} onValueChange={setTypeFilter}>
-                  <SelectTrigger className="w-[140px]" data-testid="select-type">
-                    <Filter className="w-4 h-4 mr-2" />
-                    <SelectValue placeholder="Type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {productTypes.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {type === "all" ? "All Types" : type.charAt(0).toUpperCase() + type.slice(1)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select value={flavorFilter} onValueChange={setFlavorFilter}>
-                  <SelectTrigger className="w-[140px]" data-testid="select-flavor">
-                    <SelectValue placeholder="Flavor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {flavorCategories.map((flavor) => (
-                      <SelectItem key={flavor} value={flavor}>
-                        {flavor === "all" ? "All Flavors" : flavor.charAt(0).toUpperCase() + flavor.slice(1)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            <SearchBar
+              shopId={params.shopId}
+              nicotineType={nicotineType}
+              flavorCategory={flavorCategory}
+              isKioskMode={isKioskMode}
+              onSearchChange={setSearch}
+              currentSearch={search}
+            />
           </Card>
 
-          {productsLoading ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <Card key={i} className="overflow-hidden">
-                  <Skeleton className="aspect-square" />
-                  <CardContent className="p-4 space-y-2">
-                    <Skeleton className="h-3 w-16" />
-                    <Skeleton className="h-5 w-full" />
-                    <Skeleton className="h-4 w-20" />
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : products?.length === 0 ? (
-            <Card className="p-12 text-center">
-              <Package className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No products found</h3>
-              <p className="text-muted-foreground">
-                {search || typeFilter !== "all" || flavorFilter !== "all"
-                  ? "Try adjusting your search or filters"
-                  : "This menu is currently empty"}
-              </p>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {products?.map((product) => {
-                const isFavorite = favoriteIds.has(product.id);
-                return (
-                  <Link key={product.id} href={`/menu/${params.shopId}/product/${product.id}${isKioskMode ? "?mode=kiosk" : ""}`}>
-                    <Card className="overflow-hidden hover-elevate cursor-pointer h-full" data-testid={`card-product-${product.id}`}>
-                      <div className="aspect-square bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center relative">
-                        {product.imageUrl ? (
-                          <img
-                            src={product.imageUrl}
-                            alt={product.productName}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <Package className="w-10 h-10 text-muted-foreground" />
-                        )}
-                        {product.flavorCategory && (
-                          <Badge
-                            variant="secondary"
-                            className={`absolute top-2 left-2 text-xs ${flavorColors[product.flavorCategory] || flavorColors.other}`}
-                          >
-                            {product.flavorCategory}
-                          </Badge>
-                        )}
-                        {isAuthenticated && (
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              toggleFavoriteMutation.mutate({ productId: product.id, isFavorite });
-                            }}
-                            className="absolute top-2 right-2 w-9 h-9 rounded-full bg-background/80 backdrop-blur flex items-center justify-center hover-elevate"
-                            data-testid={`button-favorite-${product.id}`}
-                          >
-                            <Heart
-                              className={`w-4 h-4 ${isFavorite ? "fill-red-500 text-red-500" : "text-muted-foreground"}`}
-                            />
-                          </button>
-                        )}
-                      </div>
-                      <CardContent className="p-3 space-y-1">
-                        {product.brand && (
-                          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide truncate">
-                            {product.brand.brandName}
-                          </p>
-                        )}
-                        <h3 className="font-semibold text-sm line-clamp-2" data-testid={`text-product-name-${product.id}`}>
-                          {product.productName}
-                        </h3>
-                        <p className="text-xs text-muted-foreground capitalize">
-                          {product.productType}
-                        </p>
+          {!isLandingView && (
+            <Breadcrumbs
+              shopId={params.shopId}
+              nicotineType={nicotineType}
+              flavorCategory={flavorCategory}
+              isKioskMode={isKioskMode}
+            />
+          )}
+
+          {isLandingView && (
+            <CategorySelector 
+              shopId={params.shopId} 
+              isKioskMode={isKioskMode} 
+            />
+          )}
+
+          {isFlavorGridView && nicotineType && (
+            <FlavorCategoryGrid 
+              shopId={params.shopId} 
+              nicotineType={nicotineType}
+              isKioskMode={isKioskMode} 
+            />
+          )}
+
+          {isProductListView && (
+            <>
+              {productsLoading ? (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <Card key={i} className="overflow-hidden">
+                      <Skeleton className="aspect-square" />
+                      <CardContent className="p-4 space-y-2">
+                        <Skeleton className="h-3 w-16" />
+                        <Skeleton className="h-5 w-full" />
+                        <Skeleton className="h-4 w-20" />
                       </CardContent>
                     </Card>
-                  </Link>
-                );
-              })}
-            </div>
+                  ))}
+                </div>
+              ) : products?.length === 0 ? (
+                <Card className="p-12 text-center">
+                  <Package className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">No products found</h3>
+                  <p className="text-muted-foreground mb-4">
+                    {search
+                      ? "Try adjusting your search"
+                      : "No products in this category"}
+                  </p>
+                  <Button variant="outline" asChild>
+                    <Link href={`/menu/${params.shopId}${modeParam}`}>
+                      Browse All Categories
+                    </Link>
+                  </Button>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {products?.map((product) => {
+                    const isFavorite = favoriteIds.has(product.id);
+                    return (
+                      <Link key={product.id} href={`/menu/${params.shopId}/product/${product.id}${modeParam}`}>
+                        <Card className="overflow-hidden hover-elevate cursor-pointer h-full" data-testid={`card-product-${product.id}`}>
+                          <div className="aspect-square bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center relative">
+                            {product.imageUrl ? (
+                              <img
+                                src={product.imageUrl}
+                                alt={product.productName}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <Package className="w-10 h-10 text-muted-foreground" />
+                            )}
+                            <div className="absolute top-2 left-2 flex flex-col gap-1">
+                              {product.flavorCategory && (
+                                <Badge
+                                  variant="secondary"
+                                  className={`text-xs ${flavorColors[product.flavorCategory] || flavorColors.other}`}
+                                >
+                                  {product.flavorCategory}
+                                </Badge>
+                              )}
+                              {product.nicotineType && product.nicotineType !== "none" && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs bg-background/80 backdrop-blur"
+                                >
+                                  {product.nicotineType === "regular" ? "Regular" : "Salt"}
+                                </Badge>
+                              )}
+                            </div>
+                            {isAuthenticated && (
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  toggleFavoriteMutation.mutate({ productId: product.id, isFavorite });
+                                }}
+                                className="absolute top-2 right-2 w-9 h-9 rounded-full bg-background/80 backdrop-blur flex items-center justify-center hover-elevate"
+                                data-testid={`button-favorite-${product.id}`}
+                              >
+                                <Heart
+                                  className={`w-4 h-4 ${isFavorite ? "fill-red-500 text-red-500" : "text-muted-foreground"}`}
+                                />
+                              </button>
+                            )}
+                          </div>
+                          <CardContent className="p-3 space-y-1">
+                            {product.brand && (
+                              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide truncate">
+                                {product.brand.brandName}
+                              </p>
+                            )}
+                            <h3 className="font-semibold text-sm line-clamp-2" data-testid={`text-product-name-${product.id}`}>
+                              {product.productName}
+                            </h3>
+                            <p className="text-xs text-muted-foreground capitalize">
+                              {product.productType}
+                            </p>
+                          </CardContent>
+                        </Card>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
         </div>
       </main>
