@@ -26,7 +26,7 @@ export default function Setup() {
 
   const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
   const menuUrl = shop ? `${baseUrl}/menu/${shop.id}` : "";
-  const kioskUrl = shop ? `${baseUrl}/menu/${shop.id}?mode=kiosk` : "";
+  const kioskUrl = shop ? `${baseUrl}/menu/kiosk/${shop.id}` : "";
   const qrCodeUrl = shop ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(menuUrl)}` : "";
 
   const copyToClipboard = async (text: string, type: "qr" | "kiosk") => {

@@ -9,7 +9,11 @@ interface CategorySelectorProps {
 }
 
 export function CategorySelector({ shopId, isKioskMode }: CategorySelectorProps) {
-  const modeParam = isKioskMode ? "?mode=kiosk" : "";
+  // Helper to build URLs that preserve kiosk mode
+  const buildUrl = (path: string) => {
+    const base = isKioskMode ? '/menu/kiosk' : '/menu';
+    return `${base}${path}`;
+  };
   
   return (
     <div className="space-y-8">
@@ -22,7 +26,7 @@ export function CategorySelector({ shopId, isKioskMode }: CategorySelectorProps)
         "grid gap-6",
         isKioskMode ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1 sm:grid-cols-2"
       )}>
-        <Link href={`/menu/${shopId}/regular${modeParam}`}>
+        <Link href={buildUrl(`/${shopId}/regular`)}>
           <Card 
             className={cn(
               "group hover-elevate cursor-pointer overflow-hidden transition-all",
@@ -56,7 +60,7 @@ export function CategorySelector({ shopId, isKioskMode }: CategorySelectorProps)
           </Card>
         </Link>
 
-        <Link href={`/menu/${shopId}/salt${modeParam}`}>
+        <Link href={buildUrl(`/${shopId}/salt`)}>
           <Card 
             className={cn(
               "group hover-elevate cursor-pointer overflow-hidden transition-all",
@@ -93,7 +97,7 @@ export function CategorySelector({ shopId, isKioskMode }: CategorySelectorProps)
 
       <div className="text-center pt-4">
         <Link 
-          href={`/menu/${shopId}/all${modeParam}`}
+          href={buildUrl(`/${shopId}/all`)}
           className="text-sm text-muted-foreground hover:text-foreground underline-offset-4 hover:underline"
           data-testid="link-browse-all"
         >

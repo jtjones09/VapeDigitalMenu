@@ -85,10 +85,18 @@ function Router() {
       <Route path="/customer-login" component={CustomerLoginPage} />
       <Route path="/admin" component={AdminRoutes} />
       <Route path="/admin/:rest*" component={AdminRoutes} />
+      {/* Kiosk mode routes - MUST come before personal routes (more specific match) */}
+      <Route path="/menu/kiosk/:shopId/product/:productId" component={ProductDetail} />
+      <Route path="/menu/kiosk/:shopId/:nicotineType/:flavorCategory" component={Menu} />
+      <Route path="/menu/kiosk/:shopId/:nicotineType" component={Menu} />
+      <Route path="/menu/kiosk/:shopId" component={Menu} />
+      
+      {/* Personal mode routes */}
       <Route path="/menu/:shopId/product/:productId" component={ProductDetail} />
-      <Route path="/menu/:shopId" component={Menu} />
-      <Route path="/menu/:shopId/:nicotineType" component={Menu} />
       <Route path="/menu/:shopId/:nicotineType/:flavorCategory" component={Menu} />
+      <Route path="/menu/:shopId/:nicotineType" component={Menu} />
+      <Route path="/menu/:shopId" component={Menu} />
+      
       <Route component={NotFound} />
     </Switch>
   );

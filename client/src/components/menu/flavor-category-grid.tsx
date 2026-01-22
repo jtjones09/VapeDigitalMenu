@@ -28,7 +28,12 @@ const flavorCategories = [
 ];
 
 export function FlavorCategoryGrid({ shopId, nicotineType, isKioskMode }: FlavorCategoryGridProps) {
-  const modeParam = isKioskMode ? "?mode=kiosk" : "";
+  // Helper to build URLs that preserve kiosk mode
+  const buildUrl = (path: string) => {
+    const base = isKioskMode ? '/menu/kiosk' : '/menu';
+    return `${base}${path}`;
+  };
+  
   const nicotineLabel = nicotineType === "regular" ? "Regular Nicotine" : nicotineType === "salt" ? "Salt Nicotine" : "All Products";
   
   return (
@@ -49,8 +54,8 @@ export function FlavorCategoryGrid({ shopId, nicotineType, isKioskMode }: Flavor
         {flavorCategories.map((category) => {
           const Icon = category.icon;
           const href = category.id === "all" 
-            ? `/menu/${shopId}/${nicotineType}${modeParam}`
-            : `/menu/${shopId}/${nicotineType}/${category.id}${modeParam}`;
+            ? buildUrl(`/${shopId}/${nicotineType}`)
+            : buildUrl(`/${shopId}/${nicotineType}/${category.id}`);
           
           return (
             <Link key={category.id} href={href}>

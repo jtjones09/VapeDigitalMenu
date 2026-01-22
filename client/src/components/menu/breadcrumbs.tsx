@@ -11,7 +11,12 @@ interface BreadcrumbsProps {
 
 export function Breadcrumbs({ shopId, nicotineType, flavorCategory, isKioskMode }: BreadcrumbsProps) {
   const [, navigate] = useLocation();
-  const modeParam = isKioskMode ? "?mode=kiosk" : "";
+  
+  // Helper to build URLs that preserve kiosk mode
+  const buildUrl = (path: string) => {
+    const base = isKioskMode ? '/menu/kiosk' : '/menu';
+    return `${base}${path}`;
+  };
   
   if (!nicotineType) {
     return null;
@@ -27,8 +32,8 @@ export function Breadcrumbs({ shopId, nicotineType, flavorCategory, isKioskMode 
     ? flavorCategory.charAt(0).toUpperCase() + flavorCategory.slice(1)
     : null;
 
-  const nicotineLink = `/menu/${shopId}/${nicotineType}${modeParam}`;
-  const landingLink = `/menu/${shopId}${modeParam}`;
+  const nicotineLink = buildUrl(`/${shopId}/${nicotineType}`);
+  const landingLink = buildUrl(`/${shopId}`);
   
   const backLink = flavorCategory ? nicotineLink : landingLink;
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useParams, useSearch, Link, useLocation } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -52,13 +52,18 @@ const validFlavorCategories = ["fruit", "dessert", "menthol", "tobacco", "bevera
 
 export default function Menu() {
   const params = useParams<{ shopId: string; nicotineType?: string; flavorCategory?: string }>();
-  const searchParams = useSearch();
-  const isKioskMode = new URLSearchParams(searchParams).get("mode") === "kiosk";
+  const [currentPath] = useLocation();
+  const isKioskMode = currentPath.startsWith('/menu/kiosk/');
   
-  // Sanitize route params to remove any query string that wouter might capture in the last param
-  const shopId = params.shopId?.split("?")[0] || "";
-  const rawNicotineType = params.nicotineType?.split("?")[0];
-  const rawFlavorCategory = params.flavorCategory?.split("?")[0];
+  // Helper to build URLs that preserve kiosk mode
+  const buildUrl = (path: string) => {
+    const base = isKioskMode ? '/menu/kiosk' : '/menu';
+    return `${base}${path}`;
+  };
+  
+  const shopId = params.shopId || "";
+  const rawNicotineType = params.nicotineType;
+  const rawFlavorCategory = params.flavorCategory;
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -264,11 +269,11 @@ export default function Menu() {
         if (isAuthenticated) {
           signOut().then(() => {
             setIsGuestMode(false);
-            setLocation(`/menu/${shopId}?mode=kiosk`);
+            setLocation(buildUrl(`/${shopId}`));
           });
         } else if (isGuestMode) {
           setIsGuestMode(false);
-          setLocation(`/menu/${shopId}?mode=kiosk`);
+          setLocation(buildUrl(`/${shopId}`));
         }
         setLastActivity(Date.now());
       }
@@ -293,7 +298,6 @@ export default function Menu() {
     other: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300",
   };
 
-  const modeParam = isKioskMode ? "?mode=kiosk" : "";
 
   if (shopLoading) {
     return (
@@ -323,7 +327,7 @@ export default function Menu() {
   if (isKioskMode && !isAuthenticated && !isGuestMode && !authLoading) {
     return (
       <GuestLogin
-        onLoginClick={() => setLocation(`/customer-login?redirect=/menu/${shopId}?mode=kiosk`)}
+        onLoginClick={() => setLocation(`/customer-login?redirect=${encodeURIComponent(buildUrl(`/${shopId}`))}`)}
         onGuestClick={handleGuestBrowse}
         shopName={shop.shopName}
         logoUrl={shop.logoUrl}
@@ -379,7 +383,7 @@ export default function Menu() {
                       if (isKioskMode) {
                         setIsGuestMode(false);
                       }
-                      setLocation(`/menu/${shopId}${isKioskMode ? '?mode=kiosk' : ''}`);
+                      setLocation(buildUrl(`/${shopId}`));
                     }}
                     data-testid="button-logout"
                   >
@@ -397,7 +401,7 @@ export default function Menu() {
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  onClick={() => setLocation(`/customer-login?redirect=/menu/${shopId}?mode=kiosk`)}
+                  onClick={() => setLocation(`/customer-login?redirect=${encodeURIComponent(buildUrl(`/${shopId}`))}`)}
                   data-testid="button-login"
                 >
                   <LogIn className="w-4 h-4 mr-2" />
@@ -406,7 +410,7 @@ export default function Menu() {
               </div>
             ) : (
               <Button variant="outline" size="sm" asChild data-testid="button-login">
-                <Link href={`/customer-login?redirect=/menu/${shopId}${isKioskMode ? '?mode=kiosk' : ''}`}>
+                <Link href={`/customer-login?redirect=${encodeURIComponent(buildUrl(`/${shopId}`))}`}>
                   <LogIn className="w-4 h-4 mr-2" />
                   Sign In
                 </Link>
@@ -478,7 +482,7 @@ export default function Menu() {
                       : "No products in this category"}
                   </p>
                   <Button variant="outline" asChild>
-                    <Link href={`/menu/${shopId}${modeParam}`}>
+                    <Link href={buildUrl(`/${shopId}`)}>
                       Browse All Categories
                     </Link>
                   </Button>
@@ -488,7 +492,7 @@ export default function Menu() {
                   {products?.map((product) => {
                     const isFavorite = favoriteIds.has(product.id);
                     return (
-                      <Link key={product.id} href={`/menu/${shopId}/product/${product.id}${modeParam}`}>
+                      <Link key={product.id} href={buildUrl(`/${shopId}/product/${product.id}`)}>
                         <Card className="overflow-hidden hover-elevate cursor-pointer h-full" data-testid={`card-product-${product.id}`}>
                           <div className="aspect-square bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center relative">
                             {product.imageUrl ? (

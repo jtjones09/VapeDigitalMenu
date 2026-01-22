@@ -35,7 +35,11 @@ export function SearchBar({
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const modeParam = isKioskMode ? "?mode=kiosk" : "";
+  // Helper to build URLs that preserve kiosk mode
+  const buildUrl = (path: string) => {
+    const base = isKioskMode ? '/menu/kiosk' : '/menu';
+    return `${base}${path}`;
+  };
 
   useEffect(() => {
     const stored = localStorage.getItem(RECENT_SEARCHES_KEY);
@@ -188,7 +192,7 @@ export function SearchBar({
                 {suggestions.map((product) => (
                   <Link
                     key={product.id}
-                    href={`/menu/${shopId}/product/${product.id}${modeParam}`}
+                    href={buildUrl(`/${shopId}/product/${product.id}`)}
                     onClick={() => {
                       saveRecentSearch(search);
                       setIsFocused(false);

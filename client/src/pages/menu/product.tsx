@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useParams, useSearch, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,8 +21,14 @@ import type { Shop, ProductWithBrand, CustomerFavorite } from "@shared/schema";
 
 export default function ProductDetail() {
   const params = useParams<{ shopId: string; productId: string }>();
-  const searchParams = useSearch();
-  const isKioskMode = new URLSearchParams(searchParams).get("mode") === "kiosk";
+  const [currentPath] = useLocation();
+  const isKioskMode = currentPath.startsWith('/menu/kiosk/');
+  
+  // Helper to build URLs that preserve kiosk mode
+  const buildUrl = (path: string) => {
+    const base = isKioskMode ? '/menu/kiosk' : '/menu';
+    return `${base}${path}`;
+  };
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -79,7 +85,7 @@ export default function ProductDetail() {
     other: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300",
   };
 
-  const menuUrl = `/menu/${params.shopId}${isKioskMode ? "?mode=kiosk" : ""}`;
+  const menuUrl = buildUrl(`/${params.shopId}`);
 
   if (shopLoading || productLoading) {
     return (
