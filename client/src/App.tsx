@@ -1,10 +1,9 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient, getAuthHeaders } from "./lib/queryClient";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
-import { useQuery } from "@tanstack/react-query";
 import { InstallPrompt } from "@/components/install-prompt";
 import { ShopProvider } from "@/contexts/shop-context";
 import NotFound from "@/pages/not-found";
@@ -19,9 +18,21 @@ import MyMenu from "@/pages/admin/my-menu";
 import Setup from "@/pages/admin/setup";
 import Settings from "@/pages/admin/settings";
 import CreateShop from "@/pages/admin/create-shop";
-import Menu from "@/pages/menu/index";
-import ProductDetail from "@/pages/menu/product";
+import MenuBase from "@/pages/menu/index";
+import ProductDetailBase from "@/pages/menu/product";
 import type { Shop } from "@shared/schema";
+
+// Wrapper components that force remount on path change
+// This fixes wouter not re-rendering when only route params change
+function Menu() {
+  const [path] = useLocation();
+  return <MenuBase key={path} />;
+}
+
+function ProductDetail() {
+  const [path] = useLocation();
+  return <ProductDetailBase key={path} />;
+}
 
 function AdminRoutes() {
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
