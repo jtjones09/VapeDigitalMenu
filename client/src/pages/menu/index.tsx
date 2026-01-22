@@ -55,8 +55,10 @@ export default function Menu() {
   const searchParams = useSearch();
   const isKioskMode = new URLSearchParams(searchParams).get("mode") === "kiosk";
   
-  // Sanitize shopId to remove any query string that might have been captured
+  // Sanitize route params to remove any query string that wouter might capture in the last param
   const shopId = params.shopId?.split("?")[0] || "";
+  const rawNicotineType = params.nicotineType?.split("?")[0];
+  const rawFlavorCategory = params.flavorCategory?.split("?")[0];
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -70,8 +72,8 @@ export default function Menu() {
   const [isGuestMode, setIsGuestMode] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
 
-  const nicotineType = params.nicotineType && validNicotineTypes.includes(params.nicotineType) ? params.nicotineType : undefined;
-  const flavorCategory = params.flavorCategory && validFlavorCategories.includes(params.flavorCategory) ? params.flavorCategory : undefined;
+  const nicotineType = rawNicotineType && validNicotineTypes.includes(rawNicotineType) ? rawNicotineType : undefined;
+  const flavorCategory = rawFlavorCategory && validFlavorCategories.includes(rawFlavorCategory) ? rawFlavorCategory : undefined;
 
   const isLandingView = !nicotineType;
   const isFlavorGridView = nicotineType && !flavorCategory && nicotineType !== "all";
