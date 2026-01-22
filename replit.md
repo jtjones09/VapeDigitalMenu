@@ -136,11 +136,28 @@ shared/           # Shared code between client and server
 - Settings page for shop configuration and kiosk timeout
 - Multi-shop support: Shop selector in header, create new shops at /admin/create-shop
 
-### Customer Menu (/menu/:shopId)
+### Customer Menu Routing
+Two parallel route sets for personal and kiosk modes:
+
+**Personal Mode** (`/menu/:shopId/...`):
+- `/menu/:shopId` - Category selector (nicotine type)
+- `/menu/:shopId/:nicotineType` - Flavor category grid
+- `/menu/:shopId/:nicotineType/:flavorCategory` - Product listing
+- `/menu/:shopId/product/:productId` - Product detail
+
+**Kiosk Mode** (`/menu/kiosk/:shopId/...`):
+- Same route structure with `/menu/kiosk/` prefix
+- Detected via `currentPath.startsWith('/menu/kiosk/')`
+- All components use `buildUrl()` helper to preserve kiosk prefix during navigation
+
+**Route Order (Critical)**: Kiosk routes MUST be declared before personal routes in App.tsx because wouter matches the first matching pattern.
+
+### Customer Menu Features
+- Two-tier navigation: Nicotine type → Flavor category → Products
 - Product grid with search and category filters
 - Product detail pages with variant information
 - Customer favorites (when logged in)
-- Kiosk mode (?mode=kiosk) with:
+- Kiosk mode features:
   - Auto-logout timer (configurable, default 5 minutes)
   - Staff reset button for session clearing
   - Larger touch-friendly UI elements
@@ -151,4 +168,4 @@ shared/           # Shared code between client and server
 - 5,360 product variants with realistic pricing and options
 - Test URLs:
   - Customer menu: /menu/demo
-  - Kiosk mode: /menu/demo?mode=kiosk
+  - Kiosk mode: /menu/kiosk/demo
