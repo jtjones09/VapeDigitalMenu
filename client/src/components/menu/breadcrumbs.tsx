@@ -1,4 +1,4 @@
-import { Link, useLocation } from "wouter";
+import { useLocation } from "wouter";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -10,7 +10,7 @@ interface BreadcrumbsProps {
 }
 
 export function Breadcrumbs({ shopId, nicotineType, flavorCategory, isKioskMode }: BreadcrumbsProps) {
-  const [, setLocation] = useLocation();
+  const [, navigate] = useLocation();
   const modeParam = isKioskMode ? "?mode=kiosk" : "";
   
   if (!nicotineType) {
@@ -27,20 +27,17 @@ export function Breadcrumbs({ shopId, nicotineType, flavorCategory, isKioskMode 
     ? flavorCategory.charAt(0).toUpperCase() + flavorCategory.slice(1)
     : null;
 
-  const backLink = flavorCategory 
-    ? `/menu/${shopId}/${nicotineType}${modeParam}`
-    : `/menu/${shopId}${modeParam}`;
-
-  const handleBack = () => {
-    setLocation(backLink);
-  };
+  const nicotineLink = `/menu/${shopId}/${nicotineType}${modeParam}`;
+  const landingLink = `/menu/${shopId}${modeParam}`;
+  
+  const backLink = flavorCategory ? nicotineLink : landingLink;
 
   return (
     <div className="flex items-center gap-2 mb-4">
       <Button
         variant="ghost"
         size="sm"
-        onClick={handleBack}
+        onClick={() => navigate(backLink)}
         className="gap-1"
         data-testid="button-back"
       >
@@ -53,13 +50,13 @@ export function Breadcrumbs({ shopId, nicotineType, flavorCategory, isKioskMode 
         
         {flavorCategory ? (
           <>
-            <Link 
-              href={`/menu/${shopId}/${nicotineType}${modeParam}`}
-              className="hover:text-foreground hover:underline underline-offset-4"
+            <button
+              onClick={() => navigate(nicotineLink)}
+              className="hover:text-foreground hover:underline underline-offset-4 cursor-pointer"
               data-testid="breadcrumb-nicotine"
             >
               {nicotineLabel}
-            </Link>
+            </button>
             <ChevronRight className="w-3 h-3" />
             <span className="font-medium text-foreground" data-testid="breadcrumb-flavor">
               {flavorLabel}
