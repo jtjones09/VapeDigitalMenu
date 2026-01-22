@@ -1,7 +1,6 @@
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
 interface BreadcrumbsProps {
   shopId: string;
@@ -11,6 +10,7 @@ interface BreadcrumbsProps {
 }
 
 export function Breadcrumbs({ shopId, nicotineType, flavorCategory, isKioskMode }: BreadcrumbsProps) {
+  const [, setLocation] = useLocation();
   const modeParam = isKioskMode ? "?mode=kiosk" : "";
   
   if (!nicotineType) {
@@ -31,19 +31,21 @@ export function Breadcrumbs({ shopId, nicotineType, flavorCategory, isKioskMode 
     ? `/menu/${shopId}/${nicotineType}${modeParam}`
     : `/menu/${shopId}${modeParam}`;
 
+  const handleBack = () => {
+    setLocation(backLink);
+  };
+
   return (
     <div className="flex items-center gap-2 mb-4">
       <Button
         variant="ghost"
         size="sm"
-        asChild
+        onClick={handleBack}
         className="gap-1"
         data-testid="button-back"
       >
-        <Link href={backLink}>
-          <ChevronLeft className="w-4 h-4" />
-          Back
-        </Link>
+        <ChevronLeft className="w-4 h-4" />
+        Back
       </Button>
       
       <div className="flex items-center gap-1 text-sm text-muted-foreground">
