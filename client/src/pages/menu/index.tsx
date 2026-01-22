@@ -55,6 +55,9 @@ export default function Menu() {
   const searchParams = useSearch();
   const isKioskMode = new URLSearchParams(searchParams).get("mode") === "kiosk";
   
+  // Sanitize shopId to remove any query string that might have been captured
+  const shopId = params.shopId?.split("?")[0] || "";
+  
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user, isAuthenticated, isLoading: authLoading, signOut } = useAuth();
@@ -75,8 +78,8 @@ export default function Menu() {
   const isProductListView = nicotineType && (flavorCategory || nicotineType === "all");
 
   const { data: shop, isLoading: shopLoading } = useQuery<Shop>({
-    queryKey: ["/api/shops", params.shopId],
-    enabled: !!params.shopId,
+    queryKey: ["/api/shops", shopId],
+    enabled: !!shopId,
   });
 
   const buildMenuQueryUrl = () => {
@@ -86,22 +89,22 @@ export default function Menu() {
     if (flavorCategory && flavorCategory !== "all") queryParams.set("flavor", flavorCategory);
     queryParams.set("type", "e-liquid");
     const queryString = queryParams.toString();
-    return `/api/shops/${params.shopId}/menu${queryString ? `?${queryString}` : ""}`;
+    return `/api/shops/${shopId}/menu${queryString ? `?${queryString}` : ""}`;
   };
 
   const { data: products, isLoading: productsLoading } = useQuery<ProductWithBrand[]>({
-    queryKey: ["/api/shops", params.shopId, "menu", { nicotineType, flavorCategory, search }],
+    queryKey: ["/api/shops", shopId, "menu", { nicotineType, flavorCategory, search }],
     queryFn: async () => {
       const res = await fetch(buildMenuQueryUrl());
       if (!res.ok) throw new Error("Failed to fetch products");
       return res.json();
     },
-    enabled: !!params.shopId && !!isProductListView,
+    enabled: !!shopId && !!isProductListView,
   });
 
   const { data: favorites } = useQuery<CustomerFavorite[]>({
-    queryKey: ["/api/customers/favorites", params.shopId],
-    enabled: isAuthenticated && !!params.shopId,
+    queryKey: ["/api/customers/favorites", shopId],
+    enabled: isAuthenticated && !!shopId,
   });
 
   const favoriteIds = new Set(favorites?.map(f => f.productId) || []);
@@ -109,13 +112,13 @@ export default function Menu() {
   const toggleFavoriteMutation = useMutation({
     mutationFn: async ({ productId, isFavorite }: { productId: string; isFavorite: boolean }) => {
       if (isFavorite) {
-        await apiRequest("DELETE", `/api/customers/favorites/${productId}?shopId=${params.shopId}`);
+        await apiRequest("DELETE", `/api/customers/favorites/${productId}?shopId=${shopId}`);
       } else {
-        await apiRequest("POST", "/api/customers/favorites", { productId, shopId: params.shopId });
+        await apiRequest("POST", "/api/customers/favorites", { productId, shopId: shopId });
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/customers/favorites", params.shopId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/customers/favorites", shopId] });
     },
     onError: () => {
       toast({
@@ -135,7 +138,7 @@ export default function Menu() {
       const response = await fetch("/api/sessions/guest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ shopId: params.shopId }),
+        body: JSON.stringify({ shopId: shopId }),
       });
       
       if (response.ok) {
@@ -147,7 +150,7 @@ export default function Menu() {
       console.error("Failed to create guest session:", error);
       setIsGuestMode(true);
     }
-  }, [params.shopId]);
+  }, [shopId]);
 
   const handleStaffReset = useCallback(async () => {
     setShowResetDialog(false);
@@ -156,7 +159,7 @@ export default function Menu() {
       await fetch("/api/sessions/clear", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ shopId: params.shopId }),
+        body: JSON.stringify({ shopId: shopId }),
       });
     } catch (error) {
       console.error("Failed to clear sessions:", error);
@@ -171,7 +174,7 @@ export default function Menu() {
     setSearch("");
     setLastActivity(Date.now());
     queryClient.invalidateQueries();
-  }, [isAuthenticated, signOut, params.shopId, queryClient]);
+  }, [isAuthenticated, signOut, shopId, queryClient]);
 
   useEffect(() => {
     if (!isKioskMode || !sessionId) return;
@@ -259,18 +262,18 @@ export default function Menu() {
         if (isAuthenticated) {
           signOut().then(() => {
             setIsGuestMode(false);
-            setLocation(`/menu/${params.shopId}?mode=kiosk`);
+            setLocation(`/menu/${shopId}?mode=kiosk`);
           });
         } else if (isGuestMode) {
           setIsGuestMode(false);
-          setLocation(`/menu/${params.shopId}?mode=kiosk`);
+          setLocation(`/menu/${shopId}?mode=kiosk`);
         }
         setLastActivity(Date.now());
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isKioskMode, shop?.kioskTimeoutMinutes, lastActivity, isAuthenticated, isGuestMode, params.shopId, sessionId, signOut, setLocation]);
+  }, [isKioskMode, shop?.kioskTimeoutMinutes, lastActivity, isAuthenticated, isGuestMode, shopId, sessionId, signOut, setLocation]);
 
   const formatTime = (ms: number) => {
     const minutes = Math.floor(ms / 60000);
@@ -318,12 +321,12 @@ export default function Menu() {
   if (isKioskMode && !isAuthenticated && !isGuestMode && !authLoading) {
     return (
       <GuestLogin
-        onLoginClick={() => setLocation(`/customer-login?redirect=/menu/${params.shopId}?mode=kiosk`)}
+        onLoginClick={() => setLocation(`/customer-login?redirect=/menu/${shopId}?mode=kiosk`)}
         onGuestClick={handleGuestBrowse}
         shopName={shop.shopName}
         logoUrl={shop.logoUrl}
         isKiosk={true}
-        shopId={params.shopId}
+        shopId={shopId}
       />
     );
   }
@@ -374,7 +377,7 @@ export default function Menu() {
                       if (isKioskMode) {
                         setIsGuestMode(false);
                       }
-                      setLocation(`/menu/${params.shopId}${isKioskMode ? '?mode=kiosk' : ''}`);
+                      setLocation(`/menu/${shopId}${isKioskMode ? '?mode=kiosk' : ''}`);
                     }}
                     data-testid="button-logout"
                   >
@@ -392,7 +395,7 @@ export default function Menu() {
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  onClick={() => setLocation(`/customer-login?redirect=/menu/${params.shopId}?mode=kiosk`)}
+                  onClick={() => setLocation(`/customer-login?redirect=/menu/${shopId}?mode=kiosk`)}
                   data-testid="button-login"
                 >
                   <LogIn className="w-4 h-4 mr-2" />
@@ -401,7 +404,7 @@ export default function Menu() {
               </div>
             ) : (
               <Button variant="outline" size="sm" asChild data-testid="button-login">
-                <Link href={`/customer-login?redirect=/menu/${params.shopId}${isKioskMode ? '?mode=kiosk' : ''}`}>
+                <Link href={`/customer-login?redirect=/menu/${shopId}${isKioskMode ? '?mode=kiosk' : ''}`}>
                   <LogIn className="w-4 h-4 mr-2" />
                   Sign In
                 </Link>
@@ -415,7 +418,7 @@ export default function Menu() {
         <div className="space-y-6">
           <Card className="p-4">
             <SearchBar
-              shopId={params.shopId}
+              shopId={shopId}
               nicotineType={nicotineType}
               flavorCategory={flavorCategory}
               isKioskMode={isKioskMode}
@@ -426,7 +429,7 @@ export default function Menu() {
 
           {!isLandingView && (
             <Breadcrumbs
-              shopId={params.shopId}
+              shopId={shopId}
               nicotineType={nicotineType}
               flavorCategory={flavorCategory}
               isKioskMode={isKioskMode}
@@ -435,14 +438,14 @@ export default function Menu() {
 
           {isLandingView && (
             <CategorySelector 
-              shopId={params.shopId} 
+              shopId={shopId} 
               isKioskMode={isKioskMode} 
             />
           )}
 
           {isFlavorGridView && nicotineType && (
             <FlavorCategoryGrid 
-              shopId={params.shopId} 
+              shopId={shopId} 
               nicotineType={nicotineType}
               isKioskMode={isKioskMode} 
             />
@@ -473,7 +476,7 @@ export default function Menu() {
                       : "No products in this category"}
                   </p>
                   <Button variant="outline" asChild>
-                    <Link href={`/menu/${params.shopId}${modeParam}`}>
+                    <Link href={`/menu/${shopId}${modeParam}`}>
                       Browse All Categories
                     </Link>
                   </Button>
@@ -483,7 +486,7 @@ export default function Menu() {
                   {products?.map((product) => {
                     const isFavorite = favoriteIds.has(product.id);
                     return (
-                      <Link key={product.id} href={`/menu/${params.shopId}/product/${product.id}${modeParam}`}>
+                      <Link key={product.id} href={`/menu/${shopId}/product/${product.id}${modeParam}`}>
                         <Card className="overflow-hidden hover-elevate cursor-pointer h-full" data-testid={`card-product-${product.id}`}>
                           <div className="aspect-square bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center relative">
                             {product.imageUrl ? (
