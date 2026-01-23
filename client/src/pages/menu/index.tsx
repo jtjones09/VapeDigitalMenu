@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useParams, Link, useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -51,13 +51,31 @@ const validNicotineTypes = ["regular", "salt", "all"];
 const validFlavorCategories = ["fruit", "dessert", "menthol", "tobacco", "beverage", "candy", "other", "all"];
 
 export default function Menu() {
-  const params = useParams<{ shopId: string; nicotineType?: string; flavorCategory?: string }>();
   const [currentPath] = useLocation();
   const isKioskMode = currentPath.startsWith('/menu/kiosk/');
   
+  // Parse route params directly from the path instead of useParams
+  // This ensures we always get the current values when the URL changes
+  const parsePathParams = (path: string) => {
+    // Clean any query strings
+    const cleanPath = path.split('?')[0];
+    // Remove the base prefix
+    const basePath = isKioskMode ? '/menu/kiosk/' : '/menu/';
+    const relativePath = cleanPath.startsWith(basePath) ? cleanPath.slice(basePath.length) : cleanPath;
+    const segments = relativePath.split('/').filter(Boolean);
+    
+    return {
+      shopId: segments[0] || '',
+      nicotineType: segments[1],
+      flavorCategory: segments[2],
+    };
+  };
+  
+  const parsedParams = parsePathParams(currentPath);
+  
   // DEBUG: Log current state on every render
   console.log("[MenuBase] RENDER path:", currentPath);
-  console.log("[MenuBase] PARAMS:", JSON.stringify(params));
+  console.log("[MenuBase] PARSED PARAMS:", JSON.stringify(parsedParams));
   console.log("[MenuBase] Kiosk:", isKioskMode);
   
   // Helper to build URLs that preserve kiosk mode
@@ -66,9 +84,9 @@ export default function Menu() {
     return `${base}${path}`;
   };
   
-  const shopId = params.shopId || "";
-  const rawNicotineType = params.nicotineType;
-  const rawFlavorCategory = params.flavorCategory;
+  const shopId = parsedParams.shopId;
+  const rawNicotineType = parsedParams.nicotineType;
+  const rawFlavorCategory = parsedParams.flavorCategory;
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
