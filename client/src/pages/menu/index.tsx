@@ -56,7 +56,9 @@ export default function Menu() {
   const isKioskMode = currentPath.startsWith('/menu/kiosk/');
   
   // DEBUG: Log current state on every render
-  console.log("[MenuBase] Render - path:", currentPath, "| params:", JSON.stringify(params), "| isKioskMode:", isKioskMode);
+  console.log("[MenuBase] RENDER path:", currentPath);
+  console.log("[MenuBase] PARAMS:", JSON.stringify(params));
+  console.log("[MenuBase] Kiosk:", isKioskMode);
   
   // Helper to build URLs that preserve kiosk mode
   const buildUrl = (path: string) => {

@@ -22,19 +22,10 @@ import MenuBase from "@/pages/menu/index";
 import ProductDetailBase from "@/pages/menu/product";
 import type { Shop } from "@shared/schema";
 
-// Wrapper components that force remount on path change
-// This fixes wouter not re-rendering when only route params change
-function Menu() {
-  const [path] = useLocation();
-  console.log("[Menu Wrapper] Current path:", path, "| Key:", path);
-  return <MenuBase key={path} />;
-}
-
-function ProductDetail() {
-  const [path] = useLocation();
-  console.log("[ProductDetail Wrapper] Current path:", path);
-  return <ProductDetailBase key={path} />;
-}
+// Use the menu and product detail components directly
+// (key-based remount was resetting guest state incorrectly)
+const Menu = MenuBase;
+const ProductDetail = ProductDetailBase;
 
 function AdminRoutes() {
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
