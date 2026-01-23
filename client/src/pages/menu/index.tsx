@@ -39,6 +39,9 @@ import {
   Users,
   Shield,
   RotateCcw,
+  Droplets,
+  Beaker,
+  Scale,
 } from "lucide-react";
 import { GuestLogin } from "@/components/guest-login";
 import { CategorySelector } from "@/components/menu/category-selector";
@@ -64,10 +67,14 @@ export default function Menu() {
     const relativePath = cleanPath.startsWith(basePath) ? cleanPath.slice(basePath.length) : cleanPath;
     const segments = relativePath.split('/').filter(Boolean);
     
+    // Check if this is a product route: /:shopId/product/:productId
+    const isProductRoute = segments[1] === 'product';
+    
     return {
       shopId: segments[0] || '',
-      nicotineType: segments[1],
-      flavorCategory: segments[2],
+      nicotineType: isProductRoute ? undefined : segments[1],
+      flavorCategory: isProductRoute ? undefined : segments[2],
+      productId: isProductRoute ? segments[2] : undefined,
     };
   };
   
@@ -82,6 +89,7 @@ export default function Menu() {
   const shopId = parsedParams.shopId;
   const rawNicotineType = parsedParams.nicotineType;
   const rawFlavorCategory = parsedParams.flavorCategory;
+  const productId = parsedParams.productId;
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -98,7 +106,8 @@ export default function Menu() {
   const nicotineType = rawNicotineType && validNicotineTypes.includes(rawNicotineType) ? rawNicotineType : undefined;
   const flavorCategory = rawFlavorCategory && validFlavorCategories.includes(rawFlavorCategory) ? rawFlavorCategory : undefined;
 
-  const isLandingView = !nicotineType;
+  const isProductDetailView = !!productId;
+  const isLandingView = !nicotineType && !productId;
   const isFlavorGridView = nicotineType && !flavorCategory && nicotineType !== "all";
   const isProductListView = nicotineType && (flavorCategory || nicotineType === "all");
 
@@ -127,12 +136,18 @@ export default function Menu() {
     enabled: !!shopId && !!isProductListView,
   });
 
+  const { data: selectedProduct, isLoading: selectedProductLoading } = useQuery<ProductWithBrand>({
+    queryKey: ["/api/products", productId],
+    enabled: !!productId,
+  });
+
   const { data: favorites } = useQuery<CustomerFavorite[]>({
     queryKey: ["/api/customers/favorites", shopId],
     enabled: isAuthenticated && !!shopId,
   });
 
   const favoriteIds = new Set(favorites?.map(f => f.productId) || []);
+  const isSelectedProductFavorite = productId ? favoriteIds.has(productId) : false;
 
   const toggleFavoriteMutation = useMutation({
     mutationFn: async ({ productId, isFavorite }: { productId: string; isFavorite: boolean }) => {
@@ -463,20 +478,174 @@ export default function Menu() {
             />
           </Card>
 
-          {!isLandingView && (
+          {(!isLandingView || isProductDetailView) && (
             <Breadcrumbs
               shopId={shopId}
               nicotineType={nicotineType}
               flavorCategory={flavorCategory}
               isKioskMode={isKioskMode}
+              productName={selectedProduct?.productName}
+              isProductView={isProductDetailView}
             />
           )}
 
-          {isLandingView && (
+          {isLandingView && !isProductDetailView && (
             <CategorySelector 
               shopId={shopId} 
               isKioskMode={isKioskMode} 
             />
+          )}
+
+          {isProductDetailView && (
+            <>
+              {selectedProductLoading ? (
+                <div className="grid md:grid-cols-2 gap-8">
+                  <Skeleton className="aspect-square rounded-xl" />
+                  <div className="space-y-4">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-8 w-full" />
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-20 w-full" />
+                  </div>
+                </div>
+              ) : !selectedProduct ? (
+                <Card className="p-12 text-center">
+                  <Package className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">Product Not Found</h3>
+                  <p className="text-muted-foreground mb-4">
+                    This product doesn't exist or has been removed.
+                  </p>
+                  <Button variant="outline" onClick={() => window.history.back()}>
+                    Go Back
+                  </Button>
+                </Card>
+              ) : (
+                <div className="grid md:grid-cols-2 gap-8">
+                  <div className="space-y-4">
+                    <div className="aspect-square bg-gradient-to-br from-muted to-muted/50 rounded-xl flex items-center justify-center overflow-hidden relative">
+                      {selectedProduct.imageUrl ? (
+                        <img
+                          src={selectedProduct.imageUrl}
+                          alt={selectedProduct.productName}
+                          className="w-full h-full object-cover"
+                          data-testid="img-product"
+                        />
+                      ) : (
+                        <Package className="w-20 h-20 text-muted-foreground" />
+                      )}
+                      {selectedProduct.flavorCategory && (
+                        <Badge
+                          variant="secondary"
+                          className={`absolute top-4 left-4 ${flavorColors[selectedProduct.flavorCategory] || flavorColors.other}`}
+                        >
+                          {selectedProduct.flavorCategory}
+                        </Badge>
+                      )}
+                      {isAuthenticated && (
+                        <button
+                          onClick={() => toggleFavoriteMutation.mutate({ 
+                            productId: selectedProduct.id, 
+                            isFavorite: isSelectedProductFavorite 
+                          })}
+                          className="absolute top-4 right-4 w-10 h-10 rounded-full bg-background/80 backdrop-blur flex items-center justify-center hover-elevate"
+                          data-testid="button-favorite"
+                        >
+                          <Heart
+                            className={`w-5 h-5 ${isSelectedProductFavorite ? "fill-red-500 text-red-500" : "text-muted-foreground"}`}
+                          />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-6">
+                    <div>
+                      {selectedProduct.brand && (
+                        <p className="text-sm text-muted-foreground font-medium uppercase tracking-wide mb-1">
+                          {selectedProduct.brand.brandName}
+                        </p>
+                      )}
+                      <h2 className="text-2xl md:text-3xl font-bold" data-testid="text-product-name">
+                        {selectedProduct.productName}
+                      </h2>
+                      <p className="text-muted-foreground capitalize mt-1">
+                        {selectedProduct.productType}
+                      </p>
+                    </div>
+
+                    {selectedProduct.flavorDescription && (
+                      <div>
+                        <h3 className="font-medium mb-2">Description</h3>
+                        <p className="text-muted-foreground" data-testid="text-description">
+                          {selectedProduct.flavorDescription}
+                        </p>
+                      </div>
+                    )}
+
+                    {selectedProduct.variants && selectedProduct.variants.length > 0 && (
+                      <Card>
+                        <CardContent className="p-4 space-y-4">
+                          <h3 className="font-medium">Available Options</h3>
+                          <div className="space-y-3">
+                            {selectedProduct.variants.some(v => v.nicotineLevel) && (
+                              <div className="flex items-start gap-3">
+                                <Droplets className="w-5 h-5 text-muted-foreground mt-0.5" />
+                                <div>
+                                  <p className="text-sm font-medium">Nicotine Levels</p>
+                                  <div className="flex flex-wrap gap-2 mt-1">
+                                    {Array.from(new Set(selectedProduct.variants.filter(v => v.nicotineLevel).map(v => v.nicotineLevel!))).map(level => (
+                                      <Badge key={level} variant="outline" className="text-xs">
+                                        {level}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            {selectedProduct.variants.some(v => v.vgPgRatio) && (
+                              <div className="flex items-start gap-3">
+                                <Beaker className="w-5 h-5 text-muted-foreground mt-0.5" />
+                                <div>
+                                  <p className="text-sm font-medium">VG/PG Ratios</p>
+                                  <div className="flex flex-wrap gap-2 mt-1">
+                                    {Array.from(new Set(selectedProduct.variants.filter(v => v.vgPgRatio).map(v => v.vgPgRatio!))).map(ratio => (
+                                      <Badge key={ratio} variant="outline" className="text-xs">
+                                        {ratio}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            {selectedProduct.variants.some(v => v.bottleSize) && (
+                              <div className="flex items-start gap-3">
+                                <Scale className="w-5 h-5 text-muted-foreground mt-0.5" />
+                                <div>
+                                  <p className="text-sm font-medium">Sizes</p>
+                                  <div className="flex flex-wrap gap-2 mt-1">
+                                    {Array.from(new Set(selectedProduct.variants.filter(v => v.bottleSize).map(v => v.bottleSize!))).map(size => (
+                                      <Badge key={size} variant="outline" className="text-xs">
+                                        {size}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    <div className="bg-muted/50 rounded-lg p-4 text-center">
+                      <p className="text-sm text-muted-foreground">
+                        Show this to our staff to purchase
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {isFlavorGridView && nicotineType && (

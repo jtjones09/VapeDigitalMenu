@@ -19,7 +19,6 @@ import Setup from "@/pages/admin/setup";
 import Settings from "@/pages/admin/settings";
 import CreateShop from "@/pages/admin/create-shop";
 import Menu from "@/pages/menu/index";
-import ProductDetail from "@/pages/menu/product";
 import type { Shop } from "@shared/schema";
 
 function AdminRoutes() {
@@ -85,13 +84,13 @@ function Router() {
       <Route path="/admin" component={AdminRoutes} />
       <Route path="/admin/:rest*" component={AdminRoutes} />
       {/* Kiosk mode routes - MUST come before personal routes (more specific match) */}
-      <Route path="/menu/kiosk/:shopId/product/:productId" component={ProductDetail} />
+      <Route path="/menu/kiosk/:shopId/product/:productId" component={Menu} />
       <Route path="/menu/kiosk/:shopId/:nicotineType/:flavorCategory" component={Menu} />
       <Route path="/menu/kiosk/:shopId/:nicotineType" component={Menu} />
       <Route path="/menu/kiosk/:shopId" component={Menu} />
       
       {/* Personal mode routes */}
-      <Route path="/menu/:shopId/product/:productId" component={ProductDetail} />
+      <Route path="/menu/:shopId/product/:productId" component={Menu} />
       <Route path="/menu/:shopId/:nicotineType/:flavorCategory" component={Menu} />
       <Route path="/menu/:shopId/:nicotineType" component={Menu} />
       <Route path="/menu/:shopId" component={Menu} />

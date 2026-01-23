@@ -6,9 +6,11 @@ interface BreadcrumbsProps {
   nicotineType?: string;
   flavorCategory?: string;
   isKioskMode: boolean;
+  productName?: string;
+  isProductView?: boolean;
 }
 
-export function Breadcrumbs({ shopId, nicotineType, flavorCategory, isKioskMode }: BreadcrumbsProps) {
+export function Breadcrumbs({ shopId, nicotineType, flavorCategory, isKioskMode, productName, isProductView }: BreadcrumbsProps) {
   const [, navigate] = useLocation();
   
   const buildUrl = (path: string) => {
@@ -16,7 +18,9 @@ export function Breadcrumbs({ shopId, nicotineType, flavorCategory, isKioskMode 
     return `${base}${path}`;
   };
   
-  if (!nicotineType) {
+  // Show breadcrumbs when we have any navigation context
+  // This includes nicotineType selection, or product view (even while loading)
+  if (!nicotineType && !isProductView) {
     return null;
   }
 
@@ -31,7 +35,8 @@ export function Breadcrumbs({ shopId, nicotineType, flavorCategory, isKioskMode 
     : null;
 
   const landingLink = buildUrl(`/${shopId}`);
-  const nicotineLink = buildUrl(`/${shopId}/${nicotineType}`);
+  const nicotineLink = nicotineType ? buildUrl(`/${shopId}/${nicotineType}`) : landingLink;
+  const flavorLink = flavorCategory && nicotineType ? buildUrl(`/${shopId}/${nicotineType}/${flavorCategory}`) : nicotineLink;
 
   return (
     <nav className="mb-4" aria-label="Breadcrumb">
@@ -47,28 +52,32 @@ export function Breadcrumbs({ shopId, nicotineType, flavorCategory, isKioskMode 
           </button>
         </li>
         
-        <li className="flex items-center">
-          <ChevronRight className="w-4 h-4 text-muted-foreground/50 mx-0.5" />
-        </li>
-        
-        <li>
-          {flavorCategory ? (
-            <button
-              onClick={() => navigate(nicotineLink)}
-              className="px-3 py-1.5 rounded-full bg-muted/60 hover:bg-muted text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-              data-testid="breadcrumb-nicotine"
-            >
-              {nicotineLabel}
-            </button>
-          ) : (
-            <span 
-              className="px-3 py-1.5 rounded-full bg-primary/10 text-sm font-medium text-primary"
-              data-testid="breadcrumb-nicotine"
-            >
-              {nicotineLabel}
-            </span>
-          )}
-        </li>
+        {nicotineType && (
+          <>
+            <li className="flex items-center">
+              <ChevronRight className="w-4 h-4 text-muted-foreground/50 mx-0.5" />
+            </li>
+            
+            <li>
+              {flavorCategory || productName ? (
+                <button
+                  onClick={() => navigate(nicotineLink)}
+                  className="px-3 py-1.5 rounded-full bg-muted/60 hover:bg-muted text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                  data-testid="breadcrumb-nicotine"
+                >
+                  {nicotineLabel}
+                </button>
+              ) : (
+                <span 
+                  className="px-3 py-1.5 rounded-full bg-primary/10 text-sm font-medium text-primary"
+                  data-testid="breadcrumb-nicotine"
+                >
+                  {nicotineLabel}
+                </span>
+              )}
+            </li>
+          </>
+        )}
         
         {flavorCategory && (
           <>
@@ -76,11 +85,37 @@ export function Breadcrumbs({ shopId, nicotineType, flavorCategory, isKioskMode 
               <ChevronRight className="w-4 h-4 text-muted-foreground/50 mx-0.5" />
             </li>
             <li>
+              {productName ? (
+                <button
+                  onClick={() => navigate(flavorLink)}
+                  className="px-3 py-1.5 rounded-full bg-muted/60 hover:bg-muted text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                  data-testid="breadcrumb-flavor"
+                >
+                  {flavorLabel}
+                </button>
+              ) : (
+                <span 
+                  className="px-3 py-1.5 rounded-full bg-primary/10 text-sm font-medium text-primary"
+                  data-testid="breadcrumb-flavor"
+                >
+                  {flavorLabel}
+                </span>
+              )}
+            </li>
+          </>
+        )}
+
+        {productName && (
+          <>
+            <li className="flex items-center">
+              <ChevronRight className="w-4 h-4 text-muted-foreground/50 mx-0.5" />
+            </li>
+            <li>
               <span 
-                className="px-3 py-1.5 rounded-full bg-primary/10 text-sm font-medium text-primary"
-                data-testid="breadcrumb-flavor"
+                className="px-3 py-1.5 rounded-full bg-primary/10 text-sm font-medium text-primary max-w-[200px] truncate inline-block"
+                data-testid="breadcrumb-product"
               >
-                {flavorLabel}
+                {productName}
               </span>
             </li>
           </>
