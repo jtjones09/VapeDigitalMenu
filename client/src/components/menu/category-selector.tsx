@@ -21,7 +21,6 @@ export function CategorySelector({ shopId, isKioskMode }: CategorySelectorProps)
         <h2 className="text-2xl font-bold mb-2" data-testid="text-category-title">Choose Your Nicotine Type</h2>
         <p className="text-muted-foreground">Select the type of e-liquid you're looking for</p>
       </div>
-      
       <div className={cn(
         "grid gap-6",
         isKioskMode ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1 sm:grid-cols-2"
@@ -53,9 +52,7 @@ export function CategorySelector({ shopId, isKioskMode }: CategorySelectorProps)
               <p className={cn(
                 "text-muted-foreground text-center mt-1",
                 isKioskMode ? "text-base" : "text-xs"
-              )}>
-                Great for cloud chasing
-              </p>
+              )}>Great for chasing</p>
             </div>
           </Card>
         </Link>
@@ -94,7 +91,6 @@ export function CategorySelector({ shopId, isKioskMode }: CategorySelectorProps)
           </Card>
         </Link>
       </div>
-
       <div className="text-center pt-4">
         <Link 
           href={buildUrl(`/${shopId}/all`)}
