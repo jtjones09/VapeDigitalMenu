@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
+import { getFlavorImage } from "@/lib/flavor-images";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -523,16 +524,12 @@ export default function Menu() {
                 <div className="grid md:grid-cols-2 gap-8">
                   <div className="space-y-4">
                     <div className="aspect-square bg-gradient-to-br from-muted to-muted/50 rounded-xl flex items-center justify-center overflow-hidden relative">
-                      {selectedProduct.imageUrl ? (
-                        <img
-                          src={selectedProduct.imageUrl}
-                          alt={selectedProduct.productName}
-                          className="w-full h-full object-cover"
-                          data-testid="img-product"
-                        />
-                      ) : (
-                        <Package className="w-20 h-20 text-muted-foreground" />
-                      )}
+                      <img
+                        src={selectedProduct.imageUrl || getFlavorImage(selectedProduct.flavorCategory)}
+                        alt={selectedProduct.productName}
+                        className="w-full h-full object-cover"
+                        data-testid="img-product"
+                      />
                       {selectedProduct.flavorCategory && (
                         <Badge
                           variant="secondary"
@@ -694,15 +691,11 @@ export default function Menu() {
                       <Link key={product.id} href={buildUrl(`/${shopId}/product/${product.id}`)}>
                         <Card className="overflow-hidden hover-elevate cursor-pointer h-full" data-testid={`card-product-${product.id}`}>
                           <div className="aspect-square bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center relative">
-                            {product.imageUrl ? (
-                              <img
-                                src={product.imageUrl}
-                                alt={product.productName}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <Package className="w-10 h-10 text-muted-foreground" />
-                            )}
+                            <img
+                              src={product.imageUrl || getFlavorImage(product.flavorCategory)}
+                              alt={product.productName}
+                              className="w-full h-full object-cover"
+                            />
                             <div className="absolute top-2 left-2 flex flex-col gap-1">
                               {product.flavorCategory && (
                                 <Badge
