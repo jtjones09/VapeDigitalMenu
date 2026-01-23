@@ -1,6 +1,5 @@
 import { useLocation } from "wouter";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ChevronRight, Home } from "lucide-react";
 
 interface BreadcrumbsProps {
   shopId: string;
@@ -12,7 +11,6 @@ interface BreadcrumbsProps {
 export function Breadcrumbs({ shopId, nicotineType, flavorCategory, isKioskMode }: BreadcrumbsProps) {
   const [, navigate] = useLocation();
   
-  // Helper to build URLs that preserve kiosk mode
   const buildUrl = (path: string) => {
     const base = isKioskMode ? '/menu/kiosk' : '/menu';
     return `${base}${path}`;
@@ -23,56 +21,71 @@ export function Breadcrumbs({ shopId, nicotineType, flavorCategory, isKioskMode 
   }
 
   const nicotineLabel = nicotineType === "regular" 
-    ? "Regular Nicotine" 
+    ? "Regular" 
     : nicotineType === "salt" 
-      ? "Salt Nicotine" 
-      : "All Products";
+      ? "Salt" 
+      : "All";
 
   const flavorLabel = flavorCategory 
     ? flavorCategory.charAt(0).toUpperCase() + flavorCategory.slice(1)
     : null;
 
-  const nicotineLink = buildUrl(`/${shopId}/${nicotineType}`);
   const landingLink = buildUrl(`/${shopId}`);
-  
-  const backLink = flavorCategory ? nicotineLink : landingLink;
+  const nicotineLink = buildUrl(`/${shopId}/${nicotineType}`);
 
   return (
-    <div className="flex items-center gap-2 mb-4">
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => navigate(backLink)}
-        className="gap-1"
-        data-testid="button-back"
-      >
-        <ChevronLeft className="w-4 h-4" />
-        Back
-      </Button>
-      
-      <div className="flex items-center gap-1 text-sm text-muted-foreground">
-        <span className="hidden sm:inline">/</span>
+    <nav className="mb-4" aria-label="Breadcrumb">
+      <ol className="flex items-center gap-1 flex-wrap">
+        <li>
+          <button
+            onClick={() => navigate(landingLink)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted/60 hover:bg-muted text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            data-testid="breadcrumb-home"
+          >
+            <Home className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Menu</span>
+          </button>
+        </li>
         
-        {flavorCategory ? (
-          <>
+        <li className="flex items-center">
+          <ChevronRight className="w-4 h-4 text-muted-foreground/50 mx-0.5" />
+        </li>
+        
+        <li>
+          {flavorCategory ? (
             <button
               onClick={() => navigate(nicotineLink)}
-              className="hover:text-foreground hover:underline underline-offset-4 cursor-pointer"
+              className="px-3 py-1.5 rounded-full bg-muted/60 hover:bg-muted text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
               data-testid="breadcrumb-nicotine"
             >
               {nicotineLabel}
             </button>
-            <ChevronRight className="w-3 h-3" />
-            <span className="font-medium text-foreground" data-testid="breadcrumb-flavor">
-              {flavorLabel}
+          ) : (
+            <span 
+              className="px-3 py-1.5 rounded-full bg-primary/10 text-sm font-medium text-primary"
+              data-testid="breadcrumb-nicotine"
+            >
+              {nicotineLabel}
             </span>
+          )}
+        </li>
+        
+        {flavorCategory && (
+          <>
+            <li className="flex items-center">
+              <ChevronRight className="w-4 h-4 text-muted-foreground/50 mx-0.5" />
+            </li>
+            <li>
+              <span 
+                className="px-3 py-1.5 rounded-full bg-primary/10 text-sm font-medium text-primary"
+                data-testid="breadcrumb-flavor"
+              >
+                {flavorLabel}
+              </span>
+            </li>
           </>
-        ) : (
-          <span className="font-medium text-foreground" data-testid="breadcrumb-nicotine">
-            {nicotineLabel}
-          </span>
         )}
-      </div>
-    </div>
+      </ol>
+    </nav>
   );
 }
