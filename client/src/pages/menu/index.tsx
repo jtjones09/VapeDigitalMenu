@@ -481,8 +481,8 @@ export default function Menu() {
           {(!isLandingView || isProductDetailView) && (
             <Breadcrumbs
               shopId={shopId}
-              nicotineType={nicotineType}
-              flavorCategory={flavorCategory}
+              nicotineType={isProductDetailView ? (selectedProduct?.nicotineType ?? undefined) : nicotineType}
+              flavorCategory={isProductDetailView ? (selectedProduct?.flavorCategory ?? undefined) : flavorCategory}
               isKioskMode={isKioskMode}
               productName={selectedProduct?.productName}
               isProductView={isProductDetailView}
