@@ -394,11 +394,16 @@ export default function Menu() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {nicotineType && (
+            {(nicotineType || isProductDetailView) && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setLocation(buildUrl(`/${shopId}`))}
+                onClick={() => {
+                  if (isKioskMode) {
+                    setIsGuestMode(false);
+                  }
+                  setLocation(buildUrl(`/${shopId}`));
+                }}
                 className="gap-1"
                 data-testid="button-start-over"
               >
