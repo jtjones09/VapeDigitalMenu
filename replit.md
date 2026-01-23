@@ -148,6 +148,8 @@ Two parallel route sets for personal and kiosk modes:
 **Kiosk Mode** (`/menu/kiosk/:shopId/...`):
 - Same route structure with `/menu/kiosk/` prefix
 - Detected via `currentPath.startsWith('/menu/kiosk/')`
+
+**Important Routing Note**: The Menu component parses route parameters directly from `useLocation()` instead of using wouter's `useParams()`. This is because `useParams()` is NOT reactive when navigating between routes that share the same component - it returns stale values. By parsing from `useLocation()`, the component correctly updates when the URL changes.
 - All components use `buildUrl()` helper to preserve kiosk prefix during navigation
 
 **Route Order (Critical)**: Kiosk routes MUST be declared before personal routes in App.tsx because wouter matches the first matching pattern.
