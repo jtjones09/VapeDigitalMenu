@@ -1,4 +1,4 @@
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route } from "wouter";
 import { queryClient, getAuthHeaders } from "./lib/queryClient";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -18,14 +18,9 @@ import MyMenu from "@/pages/admin/my-menu";
 import Setup from "@/pages/admin/setup";
 import Settings from "@/pages/admin/settings";
 import CreateShop from "@/pages/admin/create-shop";
-import MenuBase from "@/pages/menu/index";
-import ProductDetailBase from "@/pages/menu/product";
+import Menu from "@/pages/menu/index";
+import ProductDetail from "@/pages/menu/product";
 import type { Shop } from "@shared/schema";
-
-// Use the menu and product detail components directly
-// (key-based remount was resetting guest state incorrectly)
-const Menu = MenuBase;
-const ProductDetail = ProductDetailBase;
 
 function AdminRoutes() {
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();

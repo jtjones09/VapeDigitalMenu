@@ -73,11 +73,6 @@ export default function Menu() {
   
   const parsedParams = parsePathParams(currentPath);
   
-  // DEBUG: Log current state on every render
-  console.log("[MenuBase] RENDER path:", currentPath);
-  console.log("[MenuBase] PARSED PARAMS:", JSON.stringify(parsedParams));
-  console.log("[MenuBase] Kiosk:", isKioskMode);
-  
   // Helper to build URLs that preserve kiosk mode
   const buildUrl = (path: string) => {
     const base = isKioskMode ? '/menu/kiosk' : '/menu';
