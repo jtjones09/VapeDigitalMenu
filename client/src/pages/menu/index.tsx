@@ -378,6 +378,18 @@ export default function Menu() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {nicotineType && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setLocation(buildUrl(`/${shopId}`))}
+                className="gap-1"
+                data-testid="button-start-over"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span className="hidden sm:inline">Start Over</span>
+              </Button>
+            )}
             {authLoading ? (
               <Skeleton className="w-9 h-9 rounded-full" />
             ) : isAuthenticated ? (

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useParams, Link, useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,13 +16,30 @@ import {
   Scale,
   QrCode,
   Tablet,
+  RotateCcw,
 } from "lucide-react";
 import type { Shop, ProductWithBrand, CustomerFavorite } from "@shared/schema";
 
 export default function ProductDetail() {
-  const params = useParams<{ shopId: string; productId: string }>();
   const [currentPath] = useLocation();
   const isKioskMode = currentPath.startsWith('/menu/kiosk/');
+  
+  // Parse route params directly from the path instead of useParams
+  // This ensures we always get the current values when the URL changes
+  const parsePathParams = (path: string) => {
+    const cleanPath = path.split('?')[0];
+    const basePath = isKioskMode ? '/menu/kiosk/' : '/menu/';
+    const relativePath = cleanPath.startsWith(basePath) ? cleanPath.slice(basePath.length) : cleanPath;
+    const segments = relativePath.split('/').filter(Boolean);
+    
+    // Route is: /:shopId/product/:productId
+    return {
+      shopId: segments[0] || '',
+      productId: segments[2] || '', // segments[1] is "product"
+    };
+  };
+  
+  const params = parsePathParams(currentPath);
   
   // Helper to build URLs that preserve kiosk mode
   const buildUrl = (path: string) => {
@@ -133,10 +150,13 @@ export default function ProductDetail() {
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur border-b border-border">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" asChild data-testid="button-back">
-              <Link href={menuUrl}>
-                <ArrowLeft className="w-5 h-5" />
-              </Link>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => window.history.back()}
+              data-testid="button-back"
+            >
+              <ArrowLeft className="w-5 h-5" />
             </Button>
             <div className="flex items-center gap-2">
               {shop.logoUrl ? (
@@ -155,19 +175,32 @@ export default function ProductDetail() {
               )}
             </div>
           </div>
-          {isAuthenticated && (
+          <div className="flex items-center gap-2">
             <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => toggleFavoriteMutation.mutate()}
-              disabled={toggleFavoriteMutation.isPending}
-              data-testid="button-favorite"
+              variant="outline"
+              size="sm"
+              asChild
+              data-testid="button-start-over"
             >
-              <Heart
-                className={`w-5 h-5 ${isFavorite ? "fill-red-500 text-red-500" : ""}`}
-              />
+              <Link href={menuUrl}>
+                <RotateCcw className="w-4 h-4 mr-1" />
+                Start Over
+              </Link>
             </Button>
-          )}
+            {isAuthenticated && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => toggleFavoriteMutation.mutate()}
+                disabled={toggleFavoriteMutation.isPending}
+                data-testid="button-favorite"
+              >
+                <Heart
+                  className={`w-5 h-5 ${isFavorite ? "fill-red-500 text-red-500" : ""}`}
+                />
+              </Button>
+            )}
+          </div>
         </div>
       </header>
 
