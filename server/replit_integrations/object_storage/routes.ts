@@ -1,15 +1,16 @@
 import type { Express } from "express";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
+import { isAuthenticated } from "../../auth/supabase";
 
 /**
  * Register object storage routes for file uploads.
  *
  * This provides example routes for the presigned URL upload flow:
- * 1. POST /api/uploads/request-url - Get a presigned URL for uploading
+ * 1. POST /api/uploads/request-url - Get a presigned URL for uploading (authenticated)
  * 2. The client then uploads directly to the presigned URL
  *
  * IMPORTANT: These are example routes. Customize based on your use case:
- * - Add authentication middleware for protected uploads
+ * - Authentication middleware is added for protected uploads
  * - Add file metadata storage (save to database after upload)
  * - Add ACL policies for access control
  */
@@ -18,6 +19,7 @@ export function registerObjectStorageRoutes(app: Express): void {
 
   /**
    * Request a presigned URL for file upload.
+   * Requires authentication - only shop owners can upload product images.
    *
    * Request body (JSON):
    * {
@@ -35,7 +37,7 @@ export function registerObjectStorageRoutes(app: Express): void {
    * IMPORTANT: The client should NOT send the file to this endpoint.
    * Send JSON metadata only, then upload the file directly to uploadURL.
    */
-  app.post("/api/uploads/request-url", async (req, res) => {
+  app.post("/api/uploads/request-url", isAuthenticated, async (req, res) => {
     try {
       const { name, size, contentType } = req.body;
 

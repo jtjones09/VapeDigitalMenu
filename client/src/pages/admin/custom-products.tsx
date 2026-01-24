@@ -105,9 +105,14 @@ function ImageUpload({ value, onChange, disabled }: ImageUploadProps) {
 
     setIsUploading(true);
     try {
+      const authHeaders = await getAuthHeaders();
       const response = await fetch("/api/uploads/request-url", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
+        credentials: "include",
         body: JSON.stringify({
           name: file.name,
           size: file.size,
