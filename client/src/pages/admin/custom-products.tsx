@@ -284,20 +284,28 @@ export default function CustomProducts() {
   const watchedProductType = createForm.watch("productType");
   const watchedBrandName = createForm.watch("customBrandName");
 
+  const searchTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
+    if (searchTimerRef.current) {
+      clearTimeout(searchTimerRef.current);
+      searchTimerRef.current = null;
+    }
+
     if (!createDialogOpen) {
       setDuplicateMatches([]);
+      setIsSearchingDuplicates(false);
       return;
     }
 
     if (!watchedProductName || watchedProductName.length < 3) {
       setDuplicateMatches([]);
+      setIsSearchingDuplicates(false);
       return;
     }
 
-    setIsSearchingDuplicates(true);
-
-    const timer = setTimeout(async () => {
+    searchTimerRef.current = setTimeout(async () => {
+      setIsSearchingDuplicates(true);
       try {
         const authHeaders = await getAuthHeaders();
         const response = await fetch("/api/products/search-duplicates", {
@@ -325,7 +333,11 @@ export default function CustomProducts() {
       }
     }, 500);
 
-    return () => clearTimeout(timer);
+    return () => {
+      if (searchTimerRef.current) {
+        clearTimeout(searchTimerRef.current);
+      }
+    };
   }, [watchedProductName, watchedProductType, watchedBrandName, createDialogOpen]);
 
   const { data: viewedProduct, isLoading: viewedProductLoading } = useQuery<ProductWithBrand>({
@@ -513,12 +525,12 @@ export default function CustomProducts() {
     <div className="space-y-4">
       <FormField
         control={form.control}
-        name="productName"
+        name="customBrandName"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Product Name *</FormLabel>
+            <FormLabel>Brand Name</FormLabel>
             <FormControl>
-              <Input placeholder="Enter product name" {...field} data-testid="input-product-name" />
+              <Input placeholder="Enter brand name (optional)" {...field} data-testid="input-brand-name" />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -527,12 +539,12 @@ export default function CustomProducts() {
 
       <FormField
         control={form.control}
-        name="customBrandName"
+        name="productName"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Brand Name</FormLabel>
+            <FormLabel>Product Name *</FormLabel>
             <FormControl>
-              <Input placeholder="Enter brand name (optional)" {...field} data-testid="input-brand-name" />
+              <Input placeholder="Enter product name" {...field} data-testid="input-product-name" />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -553,6 +565,31 @@ export default function CustomProducts() {
               </FormControl>
               <SelectContent>
                 {productTypes.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type.charAt(0).toUpperCase() + type.slice(1)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={form.control}
+        name="nicotineType"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Nicotine Type</FormLabel>
+            <Select onValueChange={field.onChange} value={field.value ?? ""}>
+              <FormControl>
+                <SelectTrigger data-testid="select-nicotine-type">
+                  <SelectValue placeholder="Select nicotine type" />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                {nicotineTypes.map((type) => (
                   <SelectItem key={type} value={type}>
                     {type.charAt(0).toUpperCase() + type.slice(1)}
                   </SelectItem>
@@ -604,31 +641,6 @@ export default function CustomProducts() {
                 data-testid="input-flavor-description"
               />
             </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      <FormField
-        control={form.control}
-        name="nicotineType"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Nicotine Type</FormLabel>
-            <Select onValueChange={field.onChange} value={field.value ?? ""}>
-              <FormControl>
-                <SelectTrigger data-testid="select-nicotine-type">
-                  <SelectValue placeholder="Select nicotine type" />
-                </SelectTrigger>
-              </FormControl>
-              <SelectContent>
-                {nicotineTypes.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {type.charAt(0).toUpperCase() + type.slice(1)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
             <FormMessage />
           </FormItem>
         )}
@@ -749,11 +761,16 @@ export default function CustomProducts() {
                           {viewedProduct.variants.length} Variant{viewedProduct.variants.length !== 1 ? "s" : ""}
                         </p>
                         <div className="flex flex-wrap gap-1">
-                          {viewedProduct.variants.slice(0, 8).map((variant, i) => (
-                            <Badge key={i} variant="outline" className="text-xs">
-                              {variant.variantName}
-                            </Badge>
-                          ))}
+                          {viewedProduct.variants.slice(0, 8).map((variant, i) => {
+                            const label = [variant.nicotineLevel, variant.bottleSize, variant.vgPgRatio]
+                              .filter(Boolean)
+                              .join(" / ") || `Variant ${i + 1}`;
+                            return (
+                              <Badge key={i} variant="outline" className="text-xs">
+                                {label}
+                              </Badge>
+                            );
+                          })}
                           {viewedProduct.variants.length > 8 && (
                             <Badge variant="outline" className="text-xs">
                               +{viewedProduct.variants.length - 8} more
