@@ -142,11 +142,11 @@ export async function registerRoutes(
 
   // ============ PRODUCTS ============
 
-  // Get all products (admin catalog)
+  // Get all global products (admin catalog - excludes custom products)
   app.get("/api/products", isAuthenticated, async (req, res) => {
     try {
       const { search, type, flavor } = req.query;
-      const products = await storage.getProducts({
+      const products = await storage.getGlobalProducts({
         search: search as string,
         type: type as string,
         flavor: flavor as string,

@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AdminLayout } from "@/components/admin-layout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, getAuthHeaders } from "@/lib/queryClient";
 import {
   Select,
   SelectContent,
@@ -35,11 +35,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Search, Plus, Package, Filter, Pencil, Trash2 } from "lucide-react";
 import { useShop } from "@/contexts/shop-context";
-import type { ProductWithBrand } from "@shared/schema";
+import { insertProductSchema, type ProductWithBrand } from "@shared/schema";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -56,13 +55,16 @@ const productTypes = ["e-liquid", "disposable", "hardware", "accessory"];
 const flavorCategories = ["fruit", "dessert", "menthol", "tobacco", "beverage", "candy", "other"];
 const nicotineTypes = ["regular", "salt", "none"];
 
-const productFormSchema = z.object({
+const productFormSchema = insertProductSchema.pick({
+  productName: true,
+  productType: true,
+  flavorCategory: true,
+  flavorDescription: true,
+  nicotineType: true,
+  imageUrl: true,
+}).extend({
   productName: z.string().min(1, "Product name is required"),
   productType: z.string().min(1, "Product type is required"),
-  flavorCategory: z.string().optional(),
-  flavorDescription: z.string().optional(),
-  nicotineType: z.string().optional(),
-  imageUrl: z.string().optional(),
 });
 
 type ProductFormData = z.infer<typeof productFormSchema>;
@@ -80,16 +82,25 @@ export default function CustomProducts() {
   const { currentShop: shop } = useShop();
 
   const buildCustomProductsQueryKey = () => {
-    const params = new URLSearchParams();
-    if (search) params.set("search", search);
-    if (typeFilter !== "all") params.set("type", typeFilter);
-    if (flavorFilter !== "all") params.set("flavor", flavorFilter);
-    const queryString = params.toString();
-    return [`/api/shops/${shop?.id}/custom-products${queryString ? `?${queryString}` : ""}`];
+    return ["/api/shops", shop?.id, "custom-products", { search, type: typeFilter, flavor: flavorFilter }];
   };
 
   const { data: customProducts, isLoading: productsLoading } = useQuery<ProductWithBrand[]>({
     queryKey: buildCustomProductsQueryKey(),
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (search) params.set("search", search);
+      if (typeFilter !== "all") params.set("type", typeFilter);
+      if (flavorFilter !== "all") params.set("flavor", flavorFilter);
+      const queryString = params.toString();
+      const authHeaders = await getAuthHeaders();
+      const res = await fetch(`/api/shops/${shop?.id}/custom-products${queryString ? `?${queryString}` : ""}`, {
+        credentials: "include",
+        headers: authHeaders,
+      });
+      if (!res.ok) throw new Error("Failed to fetch custom products");
+      return res.json();
+    },
     enabled: !!shop,
   });
 
@@ -117,13 +128,25 @@ export default function CustomProducts() {
     },
   });
 
+  const invalidateCustomProducts = () => {
+    queryClient.invalidateQueries({ 
+      predicate: (query) => {
+        const key = query.queryKey;
+        return Array.isArray(key) && 
+          key[0] === "/api/shops" && 
+          key[1] === shop?.id && 
+          key[2] === "custom-products";
+      }
+    });
+    queryClient.invalidateQueries({ queryKey: ["/api/shops", shop?.id, "products"] });
+  };
+
   const createMutation = useMutation({
     mutationFn: async (data: ProductFormData) => {
       await apiRequest("POST", `/api/shops/${shop?.id}/custom-products`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/shops/${shop?.id}/custom-products`] });
-      queryClient.invalidateQueries({ queryKey: ["/api/shops", shop?.id, "products"] });
+      invalidateCustomProducts();
       setCreateDialogOpen(false);
       createForm.reset();
       toast({
@@ -145,8 +168,7 @@ export default function CustomProducts() {
       await apiRequest("PATCH", `/api/shops/${shop?.id}/custom-products/${id}`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/shops/${shop?.id}/custom-products`] });
-      queryClient.invalidateQueries({ queryKey: ["/api/shops", shop?.id, "products"] });
+      invalidateCustomProducts();
       setEditDialogOpen(false);
       setEditingProduct(null);
       editForm.reset();
@@ -169,8 +191,7 @@ export default function CustomProducts() {
       await apiRequest("DELETE", `/api/shops/${shop?.id}/custom-products/${productId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/shops/${shop?.id}/custom-products`] });
-      queryClient.invalidateQueries({ queryKey: ["/api/shops", shop?.id, "products"] });
+      invalidateCustomProducts();
       toast({
         title: "Product deleted",
         description: "Your custom product has been deleted.",
