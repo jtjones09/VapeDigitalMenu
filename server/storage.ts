@@ -34,6 +34,10 @@ export interface IStorage {
     productName: string;
     productType: string;
     brandName: string;
+    nicotineType: string | null;
+    flavorCategory: string | null;
+    flavorDescription: string | null;
+    imageUrl: string | null;
     similarity: number;
     isCustom: boolean;
     variantCount: number;
@@ -152,6 +156,10 @@ export class DatabaseStorage implements IStorage {
     productName: string;
     productType: string;
     brandName: string;
+    nicotineType: string | null;
+    flavorCategory: string | null;
+    flavorDescription: string | null;
+    imageUrl: string | null;
     similarity: number;
     isCustom: boolean;
     variantCount: number;
@@ -169,6 +177,10 @@ export class DatabaseStorage implements IStorage {
         p.product_name as "productName",
         p.product_type as "productType",
         COALESCE(b.brand_name, p.custom_brand_name, 'Unknown') as "brandName",
+        p.nicotine_type as "nicotineType",
+        p.flavor_category as "flavorCategory",
+        p.flavor_description as "flavorDescription",
+        p.image_url as "imageUrl",
         SIMILARITY(p.product_name, ${productName}) as similarity,
         p.is_custom as "isCustom",
         COUNT(DISTINCT pv.id)::int as "variantCount",
@@ -192,6 +204,10 @@ export class DatabaseStorage implements IStorage {
       productName: string;
       productType: string;
       brandName: string;
+      nicotineType: string | null;
+      flavorCategory: string | null;
+      flavorDescription: string | null;
+      imageUrl: string | null;
       similarity: number;
       isCustom: boolean;
       variantCount: number;

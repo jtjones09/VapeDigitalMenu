@@ -80,6 +80,10 @@ interface ProductMatch {
   productName: string;
   brandName: string;
   productType: string;
+  nicotineType: string | null;
+  flavorCategory: string | null;
+  flavorDescription: string | null;
+  imageUrl: string | null;
   similarity: number;
   variantCount: number;
   inShopMenu: boolean;
@@ -632,6 +636,25 @@ export default function CustomProducts() {
     }
   };
 
+  const handleSelectProduct = (match: ProductMatch) => {
+    createForm.setValue("productName", match.productName);
+    createForm.setValue("customBrandName", match.brandName);
+    createForm.setValue("productType", match.productType);
+    if (match.nicotineType) {
+      createForm.setValue("nicotineType", match.nicotineType);
+    }
+    if (match.flavorCategory) {
+      createForm.setValue("flavorCategory", match.flavorCategory);
+    }
+    if (match.flavorDescription) {
+      createForm.setValue("flavorDescription", match.flavorDescription);
+    }
+    if (match.imageUrl) {
+      createForm.setValue("imageUrl", match.imageUrl);
+    }
+    handleViewProduct(match.id, match.inShopMenu);
+  };
+
   const handleUseProduct = async (productId: string) => {
     try {
       const authHeaders = await getAuthHeaders();
@@ -878,6 +901,7 @@ export default function CustomProducts() {
                     productMatches={productMatches}
                     isSearching={isSearching}
                     onViewProduct={handleViewProduct}
+                    onSelectProduct={handleSelectProduct}
                     onUseProduct={handleUseProduct}
                     onUseBrand={handleUseBrand}
                   />

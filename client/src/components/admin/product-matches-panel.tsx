@@ -8,6 +8,10 @@ interface ProductMatch {
   productName: string;
   brandName: string;
   productType: string;
+  nicotineType: string | null;
+  flavorCategory: string | null;
+  flavorDescription: string | null;
+  imageUrl: string | null;
   similarity: number;
   variantCount: number;
   inShopMenu: boolean;
@@ -29,6 +33,7 @@ interface ProductMatchesPanelProps {
   productMatches: ProductMatch[];
   isSearching: boolean;
   onViewProduct: (productId: string, inMenu?: boolean) => void;
+  onSelectProduct: (match: ProductMatch) => void;
   onUseProduct: (productId: string) => void;
   onUseBrand: (brandId: string, brandName: string) => void;
 }
@@ -45,6 +50,7 @@ export function ProductMatchesPanel({
   productMatches,
   isSearching,
   onViewProduct,
+  onSelectProduct,
   onUseProduct,
   onUseBrand,
 }: ProductMatchesPanelProps) {
@@ -153,8 +159,8 @@ export function ProductMatchesPanel({
                           <Button
                             size="sm"
                             className="w-full"
-                            onClick={() => onViewProduct(match.id, true)}
-                            data-testid={`button-view-${match.id}`}
+                            onClick={() => onSelectProduct(match)}
+                            data-testid={`button-add-variant-${match.id}`}
                           >
                             <Plus className="w-3 h-3 mr-1" />
                             Add Variant
@@ -165,7 +171,7 @@ export function ProductMatchesPanel({
                               variant="outline"
                               size="sm"
                               className="flex-1"
-                              onClick={() => onViewProduct(match.id, false)}
+                              onClick={() => onSelectProduct(match)}
                               data-testid={`button-view-${match.id}`}
                             >
                               <Eye className="w-3 h-3 mr-1" />
