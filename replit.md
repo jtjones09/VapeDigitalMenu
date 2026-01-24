@@ -96,7 +96,18 @@ shared/           # Shared code between client and server
 ## Recent Changes
 
 ### January 2026
-- **Added duplicate prevention system** for custom products
+- **Added shop-specific product variants** for customization
+  - Shop owners can add their own variants to global products
+  - New database columns: `is_global` and `created_by_shop_id` on product_variants table
+  - API endpoints: `GET/POST /api/shops/:shopId/products/:productId/variants`
+  - Variant visibility: Global variants visible to all, shop-specific only to creating shop
+  - Duplicate prevention: API checks for existing variants before creating
+  - Add Variant form in product details modal with nicotine, VG/PG, size, SKU, MSRP, cost fields
+  - Request validation: Validates all input fields with proper error messages
+- **Enhanced duplicate prevention system** for custom products
+  - "In Menu" badge shows when product is already added to shop's menu
+  - "Use This" button disabled for products already in menu
+  - Product details modal shows all variants in scrollable container
   - Brand-first workflow: users search brands first, then products
   - ProductMatchesPanel shows brand matches or product matches based on input
   - "Use This Brand" action to select existing brand before entering product name
