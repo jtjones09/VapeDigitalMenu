@@ -293,7 +293,6 @@ export default function CustomProducts() {
                 </SelectTrigger>
               </FormControl>
               <SelectContent>
-                <SelectItem value="">None</SelectItem>
                 {flavorCategories.map((flavor) => (
                   <SelectItem key={flavor} value={flavor}>
                     {flavor.charAt(0).toUpperCase() + flavor.slice(1)}
@@ -339,7 +338,6 @@ export default function CustomProducts() {
                 </SelectTrigger>
               </FormControl>
               <SelectContent>
-                <SelectItem value="">None</SelectItem>
                 {nicotineTypes.map((type) => (
                   <SelectItem key={type} value={type}>
                     {type.charAt(0).toUpperCase() + type.slice(1)}
