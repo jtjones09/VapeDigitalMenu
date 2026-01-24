@@ -24,7 +24,11 @@ export interface IStorage {
   // Products
   getProduct(id: string): Promise<ProductWithBrand | undefined>;
   getProducts(filters?: { search?: string; type?: string; flavor?: string }): Promise<ProductWithBrand[]>;
+  getGlobalProducts(filters?: { search?: string; type?: string; flavor?: string }): Promise<ProductWithBrand[]>;
+  getShopCustomProducts(shopId: string, filters?: { search?: string; type?: string; flavor?: string }): Promise<ProductWithBrand[]>;
   createProduct(product: InsertProduct): Promise<Product>;
+  updateProduct(id: string, product: Partial<InsertProduct>): Promise<Product | undefined>;
+  deleteProduct(id: string): Promise<void>;
   createProductVariant(variant: InsertProductVariant): Promise<ProductVariant>;
 
   // Shop Products
@@ -142,9 +146,89 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
+  async getGlobalProducts(filters?: { search?: string; type?: string; flavor?: string }): Promise<ProductWithBrand[]> {
+    const conditions = [eq(products.isCustom, false)];
+
+    if (filters?.search) {
+      conditions.push(
+        or(
+          ilike(products.productName, `%${filters.search}%`),
+          ilike(products.flavorDescription, `%${filters.search}%`)
+        )!
+      );
+    }
+
+    if (filters?.type && filters.type !== "all") {
+      conditions.push(eq(products.productType, filters.type));
+    }
+
+    if (filters?.flavor && filters.flavor !== "all") {
+      conditions.push(eq(products.flavorCategory, filters.flavor));
+    }
+
+    const productList = await db.select().from(products).where(and(...conditions));
+
+    const result: ProductWithBrand[] = [];
+    for (const product of productList) {
+      const brand = product.brandId ? (await this.getBrand(product.brandId)) ?? null : null;
+      const variants = await db.select().from(productVariants).where(eq(productVariants.productId, product.id));
+      result.push({ ...product, brand, variants });
+    }
+
+    return result;
+  }
+
+  async getShopCustomProducts(shopId: string, filters?: { search?: string; type?: string; flavor?: string }): Promise<ProductWithBrand[]> {
+    const conditions = [eq(products.isCustom, true), eq(products.createdByShopId, shopId)];
+
+    if (filters?.search) {
+      conditions.push(
+        or(
+          ilike(products.productName, `%${filters.search}%`),
+          ilike(products.flavorDescription, `%${filters.search}%`)
+        )!
+      );
+    }
+
+    if (filters?.type && filters.type !== "all") {
+      conditions.push(eq(products.productType, filters.type));
+    }
+
+    if (filters?.flavor && filters.flavor !== "all") {
+      conditions.push(eq(products.flavorCategory, filters.flavor));
+    }
+
+    const productList = await db.select().from(products).where(and(...conditions));
+
+    const result: ProductWithBrand[] = [];
+    for (const product of productList) {
+      const brand = product.brandId ? (await this.getBrand(product.brandId)) ?? null : null;
+      const variants = await db.select().from(productVariants).where(eq(productVariants.productId, product.id));
+      result.push({ ...product, brand, variants });
+    }
+
+    return result;
+  }
+
   async createProduct(product: InsertProduct): Promise<Product> {
     const [newProduct] = await db.insert(products).values(product).returning();
     return newProduct;
+  }
+
+  async updateProduct(id: string, data: Partial<InsertProduct>): Promise<Product | undefined> {
+    const [updated] = await db
+      .update(products)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(products.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteProduct(id: string): Promise<void> {
+    await db.delete(productVariants).where(eq(productVariants.productId, id));
+    await db.delete(shopProducts).where(eq(shopProducts.productId, id));
+    await db.delete(customerFavorites).where(eq(customerFavorites.productId, id));
+    await db.delete(products).where(eq(products.id, id));
   }
 
   async createProductVariant(variant: InsertProductVariant): Promise<ProductVariant> {

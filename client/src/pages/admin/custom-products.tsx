@@ -1,0 +1,568 @@
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { AdminLayout } from "@/components/admin-layout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Search, Plus, Package, Filter, Pencil, Trash2 } from "lucide-react";
+import { useShop } from "@/contexts/shop-context";
+import type { ProductWithBrand } from "@shared/schema";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+
+const productTypes = ["e-liquid", "disposable", "hardware", "accessory"];
+const flavorCategories = ["fruit", "dessert", "menthol", "tobacco", "beverage", "candy", "other"];
+const nicotineTypes = ["regular", "salt", "none"];
+
+const productFormSchema = z.object({
+  productName: z.string().min(1, "Product name is required"),
+  productType: z.string().min(1, "Product type is required"),
+  flavorCategory: z.string().optional(),
+  flavorDescription: z.string().optional(),
+  nicotineType: z.string().optional(),
+  imageUrl: z.string().optional(),
+});
+
+type ProductFormData = z.infer<typeof productFormSchema>;
+
+export default function CustomProducts() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [flavorFilter, setFlavorFilter] = useState("all");
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<ProductWithBrand | null>(null);
+
+  const { currentShop: shop } = useShop();
+
+  const buildCustomProductsQueryKey = () => {
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    if (typeFilter !== "all") params.set("type", typeFilter);
+    if (flavorFilter !== "all") params.set("flavor", flavorFilter);
+    const queryString = params.toString();
+    return [`/api/shops/${shop?.id}/custom-products${queryString ? `?${queryString}` : ""}`];
+  };
+
+  const { data: customProducts, isLoading: productsLoading } = useQuery<ProductWithBrand[]>({
+    queryKey: buildCustomProductsQueryKey(),
+    enabled: !!shop,
+  });
+
+  const createForm = useForm<ProductFormData>({
+    resolver: zodResolver(productFormSchema),
+    defaultValues: {
+      productName: "",
+      productType: "",
+      flavorCategory: "",
+      flavorDescription: "",
+      nicotineType: "",
+      imageUrl: "",
+    },
+  });
+
+  const editForm = useForm<ProductFormData>({
+    resolver: zodResolver(productFormSchema),
+    defaultValues: {
+      productName: "",
+      productType: "",
+      flavorCategory: "",
+      flavorDescription: "",
+      nicotineType: "",
+      imageUrl: "",
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: ProductFormData) => {
+      await apiRequest("POST", `/api/shops/${shop?.id}/custom-products`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/shops/${shop?.id}/custom-products`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/shops", shop?.id, "products"] });
+      setCreateDialogOpen(false);
+      createForm.reset();
+      toast({
+        title: "Product created",
+        description: "Your custom product has been created and added to your menu.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create product",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: ProductFormData }) => {
+      await apiRequest("PATCH", `/api/shops/${shop?.id}/custom-products/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/shops/${shop?.id}/custom-products`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/shops", shop?.id, "products"] });
+      setEditDialogOpen(false);
+      setEditingProduct(null);
+      editForm.reset();
+      toast({
+        title: "Product updated",
+        description: "Your custom product has been updated.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update product",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (productId: string) => {
+      await apiRequest("DELETE", `/api/shops/${shop?.id}/custom-products/${productId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/shops/${shop?.id}/custom-products`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/shops", shop?.id, "products"] });
+      toast({
+        title: "Product deleted",
+        description: "Your custom product has been deleted.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete product",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleEdit = (product: ProductWithBrand) => {
+    setEditingProduct(product);
+    editForm.reset({
+      productName: product.productName,
+      productType: product.productType,
+      flavorCategory: product.flavorCategory || "",
+      flavorDescription: product.flavorDescription || "",
+      nicotineType: product.nicotineType || "",
+      imageUrl: product.imageUrl || "",
+    });
+    setEditDialogOpen(true);
+  };
+
+  const onCreateSubmit = (data: ProductFormData) => {
+    createMutation.mutate(data);
+  };
+
+  const onEditSubmit = (data: ProductFormData) => {
+    if (editingProduct) {
+      updateMutation.mutate({ id: editingProduct.id, data });
+    }
+  };
+
+  const flavorColors: Record<string, string> = {
+    fruit: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
+    dessert: "bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-300",
+    menthol: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300",
+    tobacco: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
+    beverage: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+    candy: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
+    other: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300",
+  };
+
+  const ProductFormFields = ({ form }: { form: ReturnType<typeof useForm<ProductFormData>> }) => (
+    <div className="space-y-4">
+      <FormField
+        control={form.control}
+        name="productName"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Product Name *</FormLabel>
+            <FormControl>
+              <Input placeholder="Enter product name" {...field} data-testid="input-product-name" />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={form.control}
+        name="productType"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Product Type *</FormLabel>
+            <Select onValueChange={field.onChange} value={field.value}>
+              <FormControl>
+                <SelectTrigger data-testid="select-product-type">
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                {productTypes.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type.charAt(0).toUpperCase() + type.slice(1)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={form.control}
+        name="flavorCategory"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Flavor Category</FormLabel>
+            <Select onValueChange={field.onChange} value={field.value}>
+              <FormControl>
+                <SelectTrigger data-testid="select-flavor-category">
+                  <SelectValue placeholder="Select flavor" />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                <SelectItem value="">None</SelectItem>
+                {flavorCategories.map((flavor) => (
+                  <SelectItem key={flavor} value={flavor}>
+                    {flavor.charAt(0).toUpperCase() + flavor.slice(1)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={form.control}
+        name="flavorDescription"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Flavor Description</FormLabel>
+            <FormControl>
+              <Textarea
+                placeholder="Describe the flavor profile..."
+                className="resize-none"
+                {...field}
+                data-testid="input-flavor-description"
+              />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={form.control}
+        name="nicotineType"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Nicotine Type</FormLabel>
+            <Select onValueChange={field.onChange} value={field.value}>
+              <FormControl>
+                <SelectTrigger data-testid="select-nicotine-type">
+                  <SelectValue placeholder="Select nicotine type" />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                <SelectItem value="">None</SelectItem>
+                {nicotineTypes.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type.charAt(0).toUpperCase() + type.slice(1)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={form.control}
+        name="imageUrl"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Image URL</FormLabel>
+            <FormControl>
+              <Input placeholder="https://example.com/image.jpg" {...field} data-testid="input-image-url" />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+    </div>
+  );
+
+  return (
+    <AdminLayout>
+      <div className="p-6 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold" data-testid="text-custom-products-title">My Custom Products</h1>
+            <p className="text-muted-foreground mt-1">
+              Create and manage your own products
+            </p>
+          </div>
+          <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button data-testid="button-create-product">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Product
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Create Custom Product</DialogTitle>
+                <DialogDescription>
+                  Add a new product that's unique to your shop.
+                </DialogDescription>
+              </DialogHeader>
+              <Form {...createForm}>
+                <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-4">
+                  <ProductFormFields form={createForm} />
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setCreateDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={createMutation.isPending} data-testid="button-submit-create">
+                      {createMutation.isPending ? "Creating..." : "Create Product"}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        <Card className="p-4">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search custom products..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+                data-testid="input-search-custom"
+              />
+            </div>
+            <div className="flex gap-3">
+              <Select value={typeFilter} onValueChange={setTypeFilter}>
+                <SelectTrigger className="w-[160px]" data-testid="select-type-filter">
+                  <Filter className="w-4 h-4 mr-2" />
+                  <SelectValue placeholder="Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  {productTypes.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type.charAt(0).toUpperCase() + type.slice(1)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={flavorFilter} onValueChange={setFlavorFilter}>
+                <SelectTrigger className="w-[160px]" data-testid="select-flavor-filter">
+                  <SelectValue placeholder="Flavor" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Flavors</SelectItem>
+                  {flavorCategories.map((flavor) => (
+                    <SelectItem key={flavor} value={flavor}>
+                      {flavor.charAt(0).toUpperCase() + flavor.slice(1)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </Card>
+
+        {productsLoading ? (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Card key={i} className="overflow-hidden">
+                <Skeleton className="aspect-square" />
+                <CardContent className="p-4 space-y-3">
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-5 w-full" />
+                  <Skeleton className="h-9 w-full" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : customProducts?.length === 0 ? (
+          <Card className="p-12 text-center">
+            <Package className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No custom products yet</h3>
+            <p className="text-muted-foreground mb-4">
+              Create your first custom product to get started
+            </p>
+            <Button onClick={() => setCreateDialogOpen(true)} data-testid="button-create-first">
+              <Plus className="w-4 h-4 mr-2" />
+              Add Your First Product
+            </Button>
+          </Card>
+        ) : (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {customProducts?.map((product) => (
+              <Card key={product.id} className="overflow-hidden" data-testid={`card-custom-product-${product.id}`}>
+                <div className="aspect-square bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center relative">
+                  {product.imageUrl ? (
+                    <img
+                      src={product.imageUrl}
+                      alt={product.productName}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Package className="w-12 h-12 text-muted-foreground" />
+                  )}
+                  {product.flavorCategory && (
+                    <Badge
+                      variant="secondary"
+                      className={`absolute top-3 left-3 ${flavorColors[product.flavorCategory] || flavorColors.other}`}
+                    >
+                      {product.flavorCategory}
+                    </Badge>
+                  )}
+                  <Badge variant="secondary" className="absolute top-3 right-3">
+                    Custom
+                  </Badge>
+                </div>
+                <CardContent className="p-4 space-y-3">
+                  <div>
+                    <h3 className="font-semibold line-clamp-2" data-testid={`text-custom-product-name-${product.id}`}>
+                      {product.productName}
+                    </h3>
+                    <p className="text-sm text-muted-foreground capitalize">
+                      {product.productType}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => handleEdit(product)}
+                      data-testid={`button-edit-${product.id}`}
+                    >
+                      <Pencil className="w-4 h-4 mr-1" />
+                      Edit
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-destructive"
+                          data-testid={`button-delete-${product.id}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete product?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will permanently delete "{product.productName}" and remove it from your menu. This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => deleteMutation.mutate(product.id)}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            data-testid="button-confirm-delete"
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit Custom Product</DialogTitle>
+              <DialogDescription>
+                Update your custom product details.
+              </DialogDescription>
+            </DialogHeader>
+            <Form {...editForm}>
+              <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
+                <ProductFormFields form={editForm} />
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={updateMutation.isPending} data-testid="button-submit-edit">
+                    {updateMutation.isPending ? "Saving..." : "Save Changes"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </AdminLayout>
+  );
+}

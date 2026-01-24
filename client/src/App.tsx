@@ -14,6 +14,7 @@ import CustomerLoginPage from "@/pages/customer-login";
 import Onboarding from "@/pages/admin/onboarding";
 import Dashboard from "@/pages/admin/dashboard";
 import Products from "@/pages/admin/products";
+import CustomProducts from "@/pages/admin/custom-products";
 import MyMenu from "@/pages/admin/my-menu";
 import Setup from "@/pages/admin/setup";
 import Settings from "@/pages/admin/settings";
@@ -64,6 +65,7 @@ function AdminRoutes() {
       <Switch>
         <Route path="/admin" component={Dashboard} />
         <Route path="/admin/products" component={Products} />
+        <Route path="/admin/custom-products" component={CustomProducts} />
         <Route path="/admin/my-menu" component={MyMenu} />
         <Route path="/admin/setup" component={Setup} />
         <Route path="/admin/settings" component={Settings} />

@@ -172,6 +172,141 @@ export async function registerRoutes(
     }
   });
 
+  // ============ CUSTOM PRODUCTS (Shop Owner Created) ============
+
+  // Get shop's custom products
+  app.get("/api/shops/:shopId/custom-products", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+    try {
+      const shopOwnerId = req.userId!;
+      const { shopId } = req.params;
+      const { search, type, flavor } = req.query;
+      
+      const shop = await storage.getShop(shopId);
+      if (!shop || shop.shopOwnerId !== shopOwnerId) {
+        return res.status(403).json({ message: "Not authorized to access this shop" });
+      }
+
+      const products = await storage.getShopCustomProducts(shopId, {
+        search: search as string,
+        type: type as string,
+        flavor: flavor as string,
+      });
+      res.json(products);
+    } catch (error) {
+      console.error("Error fetching custom products:", error);
+      res.status(500).json({ message: "Failed to fetch custom products" });
+    }
+  });
+
+  // Create custom product for shop
+  app.post("/api/shops/:shopId/custom-products", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+    try {
+      const shopOwnerId = req.userId!;
+      const { shopId } = req.params;
+      
+      const shop = await storage.getShop(shopId);
+      if (!shop || shop.shopOwnerId !== shopOwnerId) {
+        return res.status(403).json({ message: "Not authorized to access this shop" });
+      }
+
+      const schema = z.object({
+        productName: z.string().min(1, "Product name is required"),
+        productType: z.string().min(1, "Product type is required"),
+        flavorCategory: z.string().optional(),
+        flavorDescription: z.string().optional(),
+        nicotineType: z.string().optional(),
+        imageUrl: z.string().optional(),
+        brandId: z.string().optional(),
+      });
+
+      const validated = schema.parse(req.body);
+
+      const product = await storage.createProduct({
+        ...validated,
+        isCustom: true,
+        createdByShopId: shopId,
+      });
+
+      await storage.addProductToShop({
+        shopId,
+        productId: product.id,
+        isActive: true,
+      });
+
+      const fullProduct = await storage.getProduct(product.id);
+      res.status(201).json(fullProduct);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      console.error("Error creating custom product:", error);
+      res.status(500).json({ message: "Failed to create custom product" });
+    }
+  });
+
+  // Update custom product
+  app.patch("/api/shops/:shopId/custom-products/:productId", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+    try {
+      const shopOwnerId = req.userId!;
+      const { shopId, productId } = req.params;
+      
+      const shop = await storage.getShop(shopId);
+      if (!shop || shop.shopOwnerId !== shopOwnerId) {
+        return res.status(403).json({ message: "Not authorized to access this shop" });
+      }
+
+      const product = await storage.getProduct(productId);
+      if (!product || product.createdByShopId !== shopId) {
+        return res.status(404).json({ message: "Custom product not found" });
+      }
+
+      const schema = z.object({
+        productName: z.string().min(1).optional(),
+        productType: z.string().optional(),
+        flavorCategory: z.string().optional(),
+        flavorDescription: z.string().optional(),
+        nicotineType: z.string().optional(),
+        imageUrl: z.string().optional(),
+        brandId: z.string().optional(),
+      });
+
+      const validated = schema.parse(req.body);
+      const updated = await storage.updateProduct(productId, validated);
+      const fullProduct = await storage.getProduct(productId);
+      res.json(fullProduct);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      console.error("Error updating custom product:", error);
+      res.status(500).json({ message: "Failed to update custom product" });
+    }
+  });
+
+  // Delete custom product
+  app.delete("/api/shops/:shopId/custom-products/:productId", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+    try {
+      const shopOwnerId = req.userId!;
+      const { shopId, productId } = req.params;
+      
+      const shop = await storage.getShop(shopId);
+      if (!shop || shop.shopOwnerId !== shopOwnerId) {
+        return res.status(403).json({ message: "Not authorized to access this shop" });
+      }
+
+      const product = await storage.getProduct(productId);
+      if (!product || product.createdByShopId !== shopId) {
+        return res.status(404).json({ message: "Custom product not found" });
+      }
+
+      await storage.deleteProduct(productId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting custom product:", error);
+      res.status(500).json({ message: "Failed to delete custom product" });
+    }
+  });
+
   // ============ SHOP PRODUCTS (Menu Management) ============
 
   // Helper to verify shop ownership
