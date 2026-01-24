@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Check, Eye, Plus, Package, CheckCircle } from "lucide-react";
+import { Loader2, Check, Plus, Package, CheckCircle } from "lucide-react";
 
 interface ProductMatch {
   id: string;
@@ -130,7 +130,7 @@ export function ProductMatchesPanel({
                     onClick={() => match.inShopMenu ? onSelectProduct(match) : onUseProduct(match.id)}
                     data-testid={match.inShopMenu ? `button-add-variant-${match.id}` : `button-use-${match.id}`}
                   >
-                    {match.inShopMenu ? "Add Variant" : "Use This"}
+                    {match.inShopMenu ? "Add Variant" : "Add to Menu"}
                   </Button>
                 </div>
               ))}
@@ -252,27 +252,15 @@ export function ProductMatchesPanel({
                             Add Variant
                           </Button>
                         ) : (
-                          <>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="flex-1"
-                              onClick={() => onSelectProduct(match)}
-                              data-testid={`button-view-${match.id}`}
-                            >
-                              <Eye className="w-3 h-3 mr-1" />
-                              View
-                            </Button>
-                            <Button
-                              size="sm"
-                              className="flex-1"
-                              onClick={() => onUseProduct(match.id)}
-                              data-testid={`button-use-${match.id}`}
-                            >
-                              <Plus className="w-3 h-3 mr-1" />
-                              Use This
-                            </Button>
-                          </>
+                          <Button
+                            size="sm"
+                            className="w-full"
+                            onClick={() => onUseProduct(match.id)}
+                            data-testid={`button-use-${match.id}`}
+                          >
+                            <Plus className="w-3 h-3 mr-1" />
+                            Add to Menu
+                          </Button>
                         )}
                       </div>
                     </div>
