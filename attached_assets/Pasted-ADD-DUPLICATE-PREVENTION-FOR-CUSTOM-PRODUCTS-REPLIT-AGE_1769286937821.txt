@@ -1,0 +1,542 @@
+ADD DUPLICATE PREVENTION FOR CUSTOM PRODUCTS - REPLIT AGENT PROMPT
+⚠️ CRITICAL SAFETY RULES
+DO NOT:
+
+❌ Modify existing global product data
+❌ Delete any products or variants
+❌ Break current custom product creation flow
+❌ Remove any existing API endpoints
+❌ Change the database schema for products (custom_brand_name already added)
+
+DO:
+
+✅ ADD real-time duplicate detection as user types
+✅ ADD fuzzy matching for brands and product names
+✅ ADD side panel showing possible matches
+✅ ADD "Use This Product" option to add existing global product instead
+✅ ADD archive functionality for promoted products
+
+
+📋 YOUR TASK
+Problem: Shop owners might accidentally create duplicate products that already exist in the global catalog.
+Solution: Build real-time duplicate detection with fuzzy matching that shows possible matches as they fill out the product form.
+User Experience:
+┌─────────────────────────────┬─────────────────────────────┐
+│  Product Form (left side)   │  Matches Panel (right side) │
+│                             │                             │
+│  Brand: [SMOK]              │  🔍 Found 2 similar:        │
+│  Name: [Nord 4 Kit]         │                             │
+│  Type: [E-liquid]           │  ✓ SMOK Nord 4 Kit          │
+│  Flavor: [Fruit]            │    95% match - Global       │
+│                             │    [View] [Use This]        │
+│  [Continue to Variants]     │                             │
+│                             │  ✓ SMOK Nord 4 Pod System   │
+│                             │    78% match - Global       │
+│                             │    [View Details]           │
+└─────────────────────────────┴─────────────────────────────┘
+
+🔍 PART 1: ENABLE POSTGRESQL FUZZY MATCHING
+Prerequisite: PostgreSQL pg_trgm extension for similarity searches.
+Run this SQL migration:
+Create file: /server/migrations/003_enable_fuzzy_matching.sql
+sql-- Enable trigram extension for fuzzy text matching
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+-- Add GIN index on product_name for fast fuzzy searches
+CREATE INDEX IF NOT EXISTS idx_products_name_trgm 
+ON products USING gin(product_name gin_trgm_ops);
+
+-- Add GIN index on brand names (in brands table and custom_brand_name)
+CREATE INDEX IF NOT EXISTS idx_brands_name_trgm 
+ON brands USING gin(brand_name gin_trgm_ops);
+
+-- Test that similarity function works
+SELECT 
+  product_name,
+  SIMILARITY('SMOK Nord 4', product_name) as score
+FROM products
+WHERE SIMILARITY('SMOK Nord 4', product_name) > 0.3
+ORDER BY score DESC
+LIMIT 5;
+```
+
+Run this migration against your database.
+
+**Why this matters:** The `pg_trgm` extension enables fuzzy text matching like:
+- "smok" matches "SMOK"
+- "nord 4 kit" matches "SMOK Nord 4 Kit"
+- Returns similarity score (0.0 to 1.0)
+
+---
+
+## 🔎 PART 2: CREATE DUPLICATE SEARCH API ENDPOINT
+
+**File:** `/server/routes/products.ts`
+
+**NEW ENDPOINT:**
+```
+POST /api/products/search-duplicates
+Body: {
+  brandId: string (optional - if using existing brand),
+  brandName: string (optional - if using custom brand name),
+  productName: string (required),
+  productType: string (optional - helps narrow results)
+}
+
+Response: {
+  matches: [
+    {
+      id: uuid,
+      productName: string,
+      productType: string,
+      brandName: string,
+      similarity: number (0.0 to 1.0),
+      isCustom: boolean,
+      variantCount: number
+    }
+  ]
+}
+Implementation logic:
+
+Search ONLY global products (is_custom = false)
+Use fuzzy matching on product_name (SIMILARITY function)
+Match by brand (either exact brand_id match OR fuzzy brand name match)
+Return top 5 results ordered by similarity score
+Include similarity threshold of 0.6 (60% match minimum)
+Join with brands table to get brand name
+Include variant count for context
+
+Key SQL concepts to use:
+sql-- Similarity function (returns 0.0 to 1.0)
+SIMILARITY(column_name, 'search term')
+
+-- Example query structure
+SELECT 
+  p.*,
+  COALESCE(b.brand_name, p.custom_brand_name) as brand_name,
+  SIMILARITY(p.product_name, $searchTerm) as similarity,
+  COUNT(pv.id) as variant_count
+FROM products p
+LEFT JOIN brands b ON p.brand_id = b.id
+LEFT JOIN product_variants pv ON pv.product_id = p.id
+WHERE p.is_custom = false
+  AND SIMILARITY(p.product_name, $searchTerm) > 0.6
+  AND (p.brand_id = $brandId OR SIMILARITY(brand_name, $brandName) > 0.6)
+GROUP BY p.id, b.brand_name
+ORDER BY similarity DESC
+LIMIT 5
+Performance considerations:
+
+Use the GIN indexes created in Part 1
+Limit results to 5 maximum
+Only query when productName is at least 3 characters
+
+
+🎨 PART 3: UPDATE CUSTOM PRODUCT FORM WITH SPLIT LAYOUT
+File: /client/src/pages/admin/custom-products.tsx (or wherever the form is)
+Current layout: Single column form
+NEW layout: Two-column layout with form on left, matches panel on right
+Requirements:
+
+Left Column (60% width):
+
+All existing form fields
+Brand search/selection
+Product name
+Product type
+Flavor category
+Nicotine type
+Description
+Image URL
+Continue button
+
+
+Right Column (40% width):
+
+Header: "Possible Matches"
+Loading state while searching
+List of matched products (if any)
+Each match shows:
+
+Product name
+Brand name
+Product type
+Similarity percentage badge
+"View Details" button
+"Use This Product" button
+
+
+Empty state: "No matches found. Your product is unique!"
+
+
+
+Responsive design:
+
+Desktop: Side-by-side columns
+Mobile: Stack vertically (form on top, matches below)
+
+
+⏱️ PART 4: IMPLEMENT REAL-TIME DUPLICATE SEARCH
+In the custom product form component:
+State to add:
+typescriptconst [matches, setMatches] = useState([]);
+const [isSearching, setIsSearching] = useState(false);
+Debounced search logic:
+When user types in productName field (or changes brand), trigger search after 500ms delay:
+typescript// Debounce search - only search after user stops typing for 500ms
+useEffect(() => {
+  // Only search if we have minimum required info
+  if (productName.length < 3) {
+    setMatches([]);
+    return;
+  }
+  
+  setIsSearching(true);
+  
+  const timer = setTimeout(async () => {
+    try {
+      const response = await fetch('/api/products/search-duplicates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brandId: brandId,
+          brandName: customBrandName,
+          productName: productName,
+          productType: productType,
+        })
+      });
+      
+      const data = await response.json();
+      setMatches(data.matches || []);
+    } catch (error) {
+      console.error('Duplicate search failed:', error);
+    } finally {
+      setIsSearching(false);
+    }
+  }, 500);
+  
+  return () => clearTimeout(timer);
+}, [brandId, customBrandName, productName, productType]);
+Why 500ms debounce:
+
+User types "S-M-O-K" → Only 1 search after they finish
+Not 4 separate searches (better performance)
+Feels responsive but doesn't spam the API
+
+Why minimum 3 characters:
+
+Prevents searching on "S" or "SM" (too vague)
+Reduces unnecessary API calls
+
+
+🎯 PART 5: CREATE MATCHES DISPLAY COMPONENT
+Create file: /client/src/components/admin/product-matches-panel.tsx
+Props:
+typescriptinterface ProductMatchesPanelProps {
+  matches: Array<{
+    id: string;
+    productName: string;
+    brandName: string;
+    productType: string;
+    similarity: number;
+    variantCount: number;
+  }>;
+  isSearching: boolean;
+  onViewProduct: (productId: string) => void;
+  onUseProduct: (productId: string) => void;
+}
+```
+
+**UI Requirements:**
+
+1. **Loading state:**
+   - Show spinner when isSearching = true
+   - Text: "Searching for matches..."
+
+2. **No matches state:**
+   - Show checkmark icon
+   - Text: "No matching products found. Your product is unique!"
+   - Muted styling
+
+3. **Matches found state:**
+   - Header: "Found X similar products:"
+   - Card for each match showing:
+     - Product name (bold)
+     - Brand name + product type (muted text)
+     - Badge with similarity percentage (e.g., "95% match")
+     - Badge showing "Global" (to indicate it's in global catalog)
+     - Variant count (e.g., "5 variants")
+   - Two buttons:
+     - "View Details" (outline button) → Opens modal with full product info
+     - "Use This Product" (primary button) → Adds to shop menu
+
+**Styling:**
+- Cards should have hover state
+- High similarity (>0.9) → Green accent
+- Medium similarity (0.7-0.9) → Blue accent  
+- Lower similarity (0.6-0.7) → Gray accent
+
+---
+
+## 🔘 PART 6: IMPLEMENT "USE THIS PRODUCT" ACTION
+
+**When shop owner clicks "Use This Product" button:**
+
+**Flow:**
+1. Show confirmation dialog: "Add [Product Name] from global catalog to your menu?"
+2. If confirmed, call API to add product to shop_products
+3. Show success toast: "Product added to your menu!"
+4. Redirect to /admin/products or products menu page
+
+**API Call:**
+```
+POST /api/shop-products
+Body: {
+  shopId: current shop ID,
+  productId: matched product ID,
+  isActive: true,
+  displayOrder: 0 (or next available)
+}
+```
+
+**This creates a shop_products junction record WITHOUT creating a new product.**
+
+**Validation in backend:**
+- Check that shop doesn't already have this product
+- Return error if duplicate: "This product is already in your menu"
+
+---
+
+## 👁️ PART 7: IMPLEMENT "VIEW DETAILS" MODAL
+
+**When shop owner clicks "View Details" button:**
+
+**Show modal with:**
+- Product name
+- Brand name (with logo if available)
+- Product type
+- Flavor category
+- Nicotine type
+- Full description
+- Image (if available)
+- **List of all variants:**
+  - Nicotine level
+  - VG/PG ratio
+  - Bottle size
+  - MSRP
+- Button: "Add This to My Menu" (same as "Use This Product")
+- Button: "Close" (cancel)
+
+**Purpose:** Let shop owner see full product details before deciding to use it.
+
+---
+
+## 🔍 PART 8: ADD FUZZY BRAND SEARCH
+
+**In the brand selection field:**
+
+**Current:** Dropdown with exact matches only
+
+**NEW:** Searchable combobox with fuzzy matching
+
+**Requirements:**
+
+1. **As user types brand name, show fuzzy matches:**
+   - User types "smok" → Shows "SMOK"
+   - User types "naked" → Shows "Naked 100"
+   - Case-insensitive matching
+
+2. **Backend endpoint for brand search:**
+```
+GET /api/brands/search?q=searchTerm
+
+Response: {
+  brands: [
+    { id, brandName, similarity, logoUrl }
+  ]
+}
+Use SIMILARITY function on brands table:
+sqlSELECT 
+  id, 
+  brand_name,
+  logo_url,
+  SIMILARITY(brand_name, $searchTerm) as similarity
+FROM brands
+WHERE SIMILARITY(brand_name, $searchTerm) > 0.3
+ORDER BY similarity DESC
+LIMIT 10;
+```
+
+3. **If no match found:**
+   - Show option: "+ Create custom brand '[typed text]'"
+   - Clicking this sets customBrandName and brandId = null
+
+**UI pattern:**
+```
+Brand: [smok_______]
+       ↓
+Dropdown shows:
+  ✓ SMOK (brand from table)
+  ✓ SMOK Tech (if exists)
+  ---
+  + Create custom brand "smok"
+
+📦 PART 9: ADD ARCHIVE FUNCTIONALITY FOR PROMOTED PRODUCTS
+Context: When platform admin promotes a custom product to global, the original custom product should be archived (not deleted) for reference.
+Database changes needed:
+Add to products table:
+typescriptarchivedAt: timestamp("archived_at"),
+promotedToProductId: varchar("promoted_to_product_id").references(() => products.id),
+Run migration:
+sqlALTER TABLE products
+ADD COLUMN archived_at TIMESTAMP,
+ADD COLUMN promoted_to_product_id VARCHAR REFERENCES products(id);
+```
+
+**NEW endpoint (platform admin only):**
+```
+POST /api/admin/products/promote/:productId
+
+Steps:
+1. Verify product is custom (is_custom = true)
+2. Start database transaction
+3. Create new global product (copy all fields from custom)
+   - Set is_custom = false
+   - Set created_by_shop_id = null
+   - Generate new ID
+4. Copy all variants to new product
+5. Archive original custom product:
+   - Set archived_at = NOW()
+   - Set promoted_to_product_id = new global product ID
+6. Update shop_products to point to new global product
+7. Commit transaction
+
+Response: { 
+  success: true, 
+  globalProductId: new product ID 
+}
+Why archive instead of delete:
+
+✅ Keep historical record of who discovered the product
+✅ Audit trail for compliance
+✅ Can trace where products came from
+✅ No data loss
+
+Archived products:
+
+Should not appear in search results
+Should not appear in available products list
+Can be viewed in admin panel under "Archived Products" (future feature)
+
+
+✅ PART 10: TESTING CHECKLIST
+Test scenarios to verify:
+SCENARIO 1: Exact duplicate detected
+
+ Start creating custom product
+ Type "SMOK" for brand (select from dropdown)
+ Type "Nord 4 Kit" for product name
+ Right panel shows match: "SMOK Nord 4 Kit - 95% match"
+ Click "View Details" → Modal shows full product info
+ Click "Use This Product" → Product added to shop menu
+ No duplicate created ✅
+
+SCENARIO 2: Similar but not exact
+
+ Type "smok nord" for product name
+ Panel shows "SMOK Nord 4 Kit - 75% match"
+ Shop owner sees it's similar but decides theirs is different
+ Continues with form, creates custom product
+ Both products coexist (not an exact match) ✅
+
+SCENARIO 3: No matches (unique product)
+
+ Type "Jimmy's Vape" for brand (custom brand)
+ Type "Secret Strawberry Blend" for name
+ Panel shows "No matches found. Your product is unique!"
+ Continues with form
+ Creates custom product successfully ✅
+
+SCENARIO 4: Fuzzy brand search
+
+ Type "smok" in brand field
+ Dropdown shows "SMOK" as fuzzy match
+ Select it
+ brandId is set correctly ✅
+
+SCENARIO 5: Custom brand creation
+
+ Type "Jimmys Vapes" in brand field
+ No fuzzy match found
+ See option "+ Create custom brand 'Jimmys Vapes'"
+ Select it
+ customBrandName = "Jimmys Vapes", brandId = null ✅
+
+SCENARIO 6: Real-time search performance
+
+ Type quickly in product name field: "N-O-R-D"
+ Only ONE search happens (after 500ms pause)
+ No search happens for "N", "NO", "NOR" individually
+ Debouncing works ✅
+
+SCENARIO 7: Mobile layout
+
+ Open on mobile device
+ Form is on top
+ Matches panel is below (stacked)
+ Both sections fully visible and functional ✅
+
+SCENARIO 8: Product promotion (admin)
+
+ Admin promotes custom product to global
+ Original custom product archived (archived_at set)
+ New global product created
+ Variants copied
+ Shop's menu updated to point to global version
+ Original custom product not visible in search ✅
+
+
+🎯 EXPECTED OUTCOME
+BEFORE:
+
+Shop owners accidentally create duplicates ❌
+Global catalog has redundant products ❌
+No way to know if product already exists ❌
+Typing "smok" doesn't find "SMOK" ❌
+
+AFTER:
+
+Real-time duplicate detection as they type ✅
+Shows matches with similarity scores ✅
+One click to add existing product instead ✅
+Fuzzy matching finds "SMOK" when typing "smok" ✅
+Clear feedback: "Your product is unique!" ✅
+Promoted products are archived for history ✅
+
+
+📊 PERFORMANCE NOTES
+Optimizations included:
+
+Debouncing (500ms) reduces API calls
+Minimum 3 characters before searching
+GIN indexes make fuzzy searches fast (<100ms)
+Limit results to top 5 matches
+Client-side caching for brand list
+
+Expected performance:
+
+Search response time: <200ms
+Feels instant to users
+Minimal server load
+
+
+🚨 IMPORTANT NOTES
+
+PostgreSQL pg_trgm extension is REQUIRED - Won't work without it
+Test fuzzy matching locally first - Make sure SIMILARITY function works
+Don't block product creation - Matches are suggestions, not hard blocks
+Archive, don't delete - Always keep historical data
+Mobile-first - Make sure layout works on phones
+
+
+Good luck! This will prevent 90%+ of duplicate products while maintaining a smooth UX.Claude is AI and can make mistakes. Please double-check responses. Sonnet 4.5

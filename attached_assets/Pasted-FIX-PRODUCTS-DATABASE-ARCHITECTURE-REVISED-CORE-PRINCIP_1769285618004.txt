@@ -1,0 +1,309 @@
+FIX PRODUCTS DATABASE ARCHITECTURE - REVISED
+CORE PRINCIPLE
+Custom products = Global products
+The ONLY differences:
+
+is_custom flag (true vs false)
+created_by_shop_id (shop ID vs null)
+Visibility (one shop vs all shops)
+
+Everything else is IDENTICAL:
+
+Same fields required
+Same variant structure
+Same pricing model
+Same brand handling
+Same data quality
+
+"Custom" just means "not in the global catalog (yet)."
+
+YOUR TASK
+Fix the database schema to ensure custom products are full first-class citizens with all the same capabilities as global products.
+DO NOT create separate tables or fields for custom products.
+DO ensure the architecture treats them identically except for ownership/visibility.
+
+FIX #1: ADD CUSTOM BRAND NAME FIELD
+File: /shared/schema.ts
+In the products table, ADD this field:
+typescriptcustomBrandName: varchar("custom_brand_name", { length: 255 }),
+Why: Shop owner's friend makes a local juice called "Jimmy's Vape Shack" - not in the brands table. Need a place to store that brand name.
+Logic:
+
+Global product: Usually has brand_id (links to brands table)
+Custom product: Can have brand_id (if it's a known brand) OR custom_brand_name (if it's local/unknown)
+Display logic: brand_id ? brands.brand_name : custom_brand_name
+
+Both custom AND global products can use either field - no restrictions.
+
+FIX #2: ENSURE VARIANT SUPPORT IS MANDATORY
+File: /shared/schema.ts
+Current state: Variants are optional (product can exist without variants)
+Problem: E-liquids MUST have variants (nicotine levels, sizes, prices). Without variants, they can't be sold.
+Solution: Add validation in the API layer (not database constraints, since hardware doesn't need variants).
+In the backend API for creating products:
+typescript// After creating product
+if (product.productType === "e-liquid") {
+  if (!variants || variants.length === 0) {
+    throw new Error("E-liquid products require at least one variant");
+  }
+}
+
+// Hardware/accessories can skip variants
+if (product.productType === "hardware" || product.productType === "accessory") {
+  // Variants are optional for these types
+}
+This applies to BOTH global AND custom products - same rules.
+
+FIX #3: CLARIFY PRICING HIERARCHY (SAME FOR ALL PRODUCTS)
+File: /shared/schema.ts
+In product_variants table:
+typescriptmsrp: decimal("msrp", { precision: 10, scale: 2 }),
+// Manufacturer Suggested Retail Price
+// Set by: Platform (global products) OR Shop owner (custom products)
+// This is the "default" price
+// Can be overridden per-shop via shop_products.custom_price
+
+cost: decimal("cost", { precision: 10, scale: 2 }),
+// Optional: Wholesale cost for profit calculations
+// Not shown to customers
+In shop_products table:
+typescriptcustomPrice: decimal("custom_price", { precision: 10, scale: 2 }),
+// Shop's price override for ANY product (global OR custom)
+// If set: This price is shown to customers
+// If null: variant.msrp is shown
+// Use case: Shop wants to price global product differently, or adjust their own custom product price
+Pricing works identically for custom and global products.
+
+FIX #4: DATABASE CONSTRAINTS (ENFORCE DATA QUALITY)
+File: /shared/schema.ts
+Add these constraints to ensure clean data:
+typescript// In products table schema
+export const products = pgTable("products", {
+  // ... existing fields ...
+}, (table) => ({
+  // Constraint: If custom, must have shop ID
+  customProductsHaveShopId: check(
+    "custom_products_have_shop_id",
+    sql`(is_custom = false AND created_by_shop_id IS NULL) OR (is_custom = true AND created_by_shop_id IS NOT NULL)`
+  ),
+}));
+This prevents:
+
+❌ Custom products without a shop ID (orphaned)
+❌ Global products with a shop ID (confused ownership)
+
+
+FIX #5: ADD UNIQUE CONSTRAINT ON SHOP_PRODUCTS
+File: /shared/schema.ts
+In shop_products table, add unique constraint:
+typescriptexport const shopProducts = pgTable("shop_products", {
+  // ... existing fields ...
+}, (table) => ({
+  // Prevent adding the same product twice to a shop's menu
+  uniqueShopProduct: unique("unique_shop_product").on(table.shopId, table.productId),
+}));
+This prevents duplicate entries (same product added multiple times to same shop).
+Works for both custom and global products.
+
+FIX #6: ADD PERFORMANCE INDEXES
+Run this migration to add indexes:
+sql-- Products table - speed up filtering
+CREATE INDEX IF NOT EXISTS idx_products_is_custom ON products(is_custom);
+CREATE INDEX IF NOT EXISTS idx_products_shop_id ON products(created_by_shop_id);
+CREATE INDEX IF NOT EXISTS idx_products_type ON products(product_type);
+CREATE INDEX IF NOT EXISTS idx_products_nicotine_type ON products(nicotine_type);
+CREATE INDEX IF NOT EXISTS idx_products_flavor ON products(flavor_category);
+
+-- Composite index for common queries
+CREATE INDEX IF NOT EXISTS idx_products_custom_shop ON products(is_custom, created_by_shop_id) WHERE created_by_shop_id IS NOT NULL;
+
+-- Product variants - speed up joins
+CREATE INDEX IF NOT EXISTS idx_variants_product_id ON product_variants(product_id);
+
+-- Shop products - speed up menu queries
+CREATE INDEX IF NOT EXISTS idx_shop_products_shop ON shop_products(shop_id);
+CREATE INDEX IF NOT EXISTS idx_shop_products_product ON shop_products(product_id);
+Or add to Drizzle schema as index definitions.
+
+FIX #7: CREATE DATABASE VIEW FOR EASY QUERYING
+Create a view that handles brand name logic automatically:
+sqlCREATE OR REPLACE VIEW products_full AS
+SELECT 
+  p.*,
+  -- Brand name (either from brands table or custom field)
+  COALESCE(b.brand_name, p.custom_brand_name, 'Unknown Brand') as brand_name,
+  b.logo_url as brand_logo_url,
+  b.website as brand_website,
+  -- Shop info (for custom products)
+  s.shop_name as created_by_shop_name
+FROM products p
+LEFT JOIN brands b ON p.brand_id = b.id
+LEFT JOIN shops s ON p.created_by_shop_id = s.id;
+Usage in queries:
+typescript// Get all products available to shop123
+const products = await db.execute(sql`
+  SELECT * FROM products_full
+  WHERE is_custom = false  -- Global products
+     OR created_by_shop_id = ${shopId}  -- Their custom products
+  ORDER BY brand_name, product_name
+`);
+
+// brand_name is already computed (no complex COALESCE needed)
+This view works for BOTH custom and global products seamlessly.
+
+FIX #8: UPDATE API LOGIC FOR "AVAILABLE PRODUCTS"
+File: /server/routes/products.ts
+When shop browses products to add to their menu, show:
+typescriptrouter.get("/api/products/available", async (req, res) => {
+  const shopId = req.user.shopId;
+  
+  const products = await db
+    .select()
+    .from(products)
+    .where(
+      or(
+        eq(products.isCustom, false),  // All global products
+        eq(products.createdByShopId, shopId)  // Their custom products
+      )
+    )
+    .orderBy(products.productName);
+  
+  res.json(products);
+});
+Key point: Shop sees:
+
+ALL global products (available to everyone)
+ONLY their own custom products (not other shops' custom products)
+
+
+FIX #9: ENSURE VARIANT CREATION WORKFLOW
+This is API/UI level, but document the requirement:
+When creating a product (custom OR global):
+
+Fill product form:
+
+Name ✓
+Brand (select existing OR type custom) ✓
+Product type ✓
+Flavor category ✓
+Nicotine type ✓
+Description ✓
+Image ✓
+
+
+If product type is "e-liquid" or "disposable":
+
+IMMEDIATELY show variant creation form
+Require at least 1 variant
+Each variant: nicotine level + VG/PG + bottle size + MSRP + cost
+
+
+If product type is "hardware" or "accessory":
+
+Variants are optional
+Can skip to save
+
+
+Save product + variants in single transaction
+
+This workflow is IDENTICAL for custom and global products.
+The only UI difference:
+
+Platform admin creates global (is_custom = false, created_by_shop_id = null)
+Shop owner creates custom (is_custom = true, created_by_shop_id = their shop)
+
+
+VERIFICATION QUERIES
+After making changes, verify data integrity:
+sql-- 1. Check custom products have shop IDs
+SELECT COUNT(*) as bad_records
+FROM products 
+WHERE is_custom = true AND created_by_shop_id IS NULL;
+-- Should return 0
+
+-- 2. Check global products DON'T have shop IDs
+SELECT COUNT(*) as bad_records
+FROM products 
+WHERE is_custom = false AND created_by_shop_id IS NOT NULL;
+-- Should return 0
+
+-- 3. Check all e-liquids have variants
+SELECT p.id, p.product_name, COUNT(pv.id) as variant_count
+FROM products p
+LEFT JOIN product_variants pv ON p.id = pv.product_id
+WHERE p.product_type = 'e-liquid'
+GROUP BY p.id, p.product_name
+HAVING COUNT(pv.id) = 0;
+-- Should return 0 (all e-liquids should have variants)
+
+-- 4. Check brand handling works
+SELECT 
+  product_name,
+  is_custom,
+  COALESCE(b.brand_name, custom_brand_name, 'No Brand') as final_brand
+FROM products p
+LEFT JOIN brands b ON p.brand_id = b.id
+LIMIT 20;
+-- Verify brand names display correctly for both types
+
+-- 5. Check pricing logic
+SELECT 
+  p.product_name,
+  p.is_custom,
+  pv.msrp,
+  sp.custom_price,
+  COALESCE(sp.custom_price, pv.msrp) as customer_sees
+FROM products p
+JOIN product_variants pv ON p.id = pv.product_id
+JOIN shop_products sp ON p.id = sp.product_id
+LIMIT 10;
+-- Verify pricing hierarchy works for both types
+
+RUN MIGRATION
+After updating schema.ts:
+bashnpm run db:push
+
+EXPECTED OUTCOME
+BEFORE:
+
+Custom products feel like "lesser" products ❌
+Unclear if variants are supported ❌
+Confusing rules between global vs custom ❌
+
+AFTER:
+
+Custom products = Global products (just different visibility) ✅
+Same fields, same variants, same pricing ✅
+Clear ownership (created_by_shop_id) ✅
+Clean architecture ✅
+
+Example Use Cases:
+
+Shop owner's friend makes local juice "Jimmy's Blend":
+
+Create custom product ✓
+custom_brand_name = "Jimmy's Vape Shack" ✓
+Add variants (0mg, 3mg, 6mg in 60ml) ✓
+Set MSRP = $24.99 ✓
+Only visible to this shop ✓
+
+
+Platform adds new national brand:
+
+Create global product ✓
+brand_id = existing brand from brands table ✓
+Add variants (standard sizes/strengths) ✓
+Set MSRP = $19.99 ✓
+Visible to ALL shops ✓
+
+
+Shop wants to price global product differently:
+
+Global product already in catalog ✓
+Add to shop's menu (shop_products) ✓
+Set custom_price = $22.99 (overrides MSRP) ✓
+Customers see $22.99, not $19.99 ✓
+
+
+
+All scenarios work seamlessly with same database structure.
