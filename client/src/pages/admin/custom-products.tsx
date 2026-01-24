@@ -165,7 +165,6 @@ function ImageUpload({ value, onChange, disabled }: ImageUploadProps) {
         ref={fileInputRef}
         type="file"
         accept="image/*"
-        capture="environment"
         className="hidden"
         onChange={handleFileSelect}
         disabled={disabled || isUploading}
@@ -537,7 +536,7 @@ export default function CustomProducts() {
                 Add Product
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md">
+            <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Create Custom Product</DialogTitle>
                 <DialogDescription>
@@ -714,7 +713,7 @@ export default function CustomProducts() {
         )}
 
         <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Edit Custom Product</DialogTitle>
               <DialogDescription>
