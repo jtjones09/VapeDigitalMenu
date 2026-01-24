@@ -82,6 +82,7 @@ interface ProductMatch {
   productType: string;
   similarity: number;
   variantCount: number;
+  inShopMenu: boolean;
 }
 
 interface BrandMatch {
@@ -425,6 +426,15 @@ export default function CustomProducts() {
   const [isSearching, setIsSearching] = useState(false);
   const [viewProductId, setViewProductId] = useState<string | null>(null);
   const [selectedBrandId, setSelectedBrandId] = useState<string | null>(null);
+  const [showAddVariantForm, setShowAddVariantForm] = useState(false);
+  const [newVariant, setNewVariant] = useState({
+    nicotineLevel: "",
+    vgPgRatio: "",
+    bottleSize: "",
+    sku: "",
+    msrp: "",
+    cost: "",
+  });
 
   const { currentShop: shop } = useShop();
 
@@ -522,6 +532,7 @@ export default function CustomProducts() {
               productType: values.productType || undefined,
               brandName: brandName || undefined,
               brandId: selectedBrandId,
+              shopId: shop?.id,
             }),
           });
           if (response.ok) {
@@ -540,6 +551,7 @@ export default function CustomProducts() {
             body: JSON.stringify({
               productName: productName,
               productType: values.productType || undefined,
+              shopId: shop?.id,
             }),
           });
           if (response.ok) {
@@ -734,6 +746,36 @@ export default function CustomProducts() {
     },
   });
 
+  const addVariantMutation = useMutation({
+    mutationFn: async ({ productId, variant }: { productId: string; variant: typeof newVariant }) => {
+      const response = await apiRequest("POST", `/api/shops/${shop?.id}/products/${productId}/variants`, {
+        nicotineLevel: variant.nicotineLevel || null,
+        vgPgRatio: variant.vgPgRatio || null,
+        bottleSize: variant.bottleSize || null,
+        sku: variant.sku || null,
+        msrp: variant.msrp ? parseFloat(variant.msrp) : null,
+        cost: variant.cost ? parseFloat(variant.cost) : null,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/products", viewProductId] });
+      toast({
+        title: "Variant added",
+        description: "Your custom variant has been added to this product.",
+      });
+      setShowAddVariantForm(false);
+      setNewVariant({ nicotineLevel: "", vgPgRatio: "", bottleSize: "", sku: "", msrp: "", cost: "" });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add variant",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleEdit = (product: ProductWithBrand) => {
     setEditingProduct(product);
     editForm.reset({
@@ -878,25 +920,127 @@ export default function CustomProducts() {
                     )}
                     {viewedProduct.variants && viewedProduct.variants.length > 0 && (
                       <div className="pt-2 border-t">
-                        <p className="text-sm font-medium mb-2">
-                          {viewedProduct.variants.length} Variant{viewedProduct.variants.length !== 1 ? "s" : ""}
-                        </p>
-                        <div className="flex flex-wrap gap-1">
-                          {viewedProduct.variants.slice(0, 8).map((variant, i) => {
-                            const label = [variant.nicotineLevel, variant.bottleSize, variant.vgPgRatio]
-                              .filter(Boolean)
-                              .join(" / ") || `Variant ${i + 1}`;
-                            return (
-                              <Badge key={i} variant="outline" className="text-xs">
-                                {label}
-                              </Badge>
-                            );
-                          })}
-                          {viewedProduct.variants.length > 8 && (
-                            <Badge variant="outline" className="text-xs">
-                              +{viewedProduct.variants.length - 8} more
-                            </Badge>
-                          )}
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-sm font-medium">
+                            {viewedProduct.variants.length} Variant{viewedProduct.variants.length !== 1 ? "s" : ""}
+                          </p>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setShowAddVariantForm(!showAddVariantForm)}
+                            data-testid="button-toggle-add-variant"
+                          >
+                            <Plus className="w-3 h-3 mr-1" />
+                            Add Custom Variant
+                          </Button>
+                        </div>
+                        <div className="max-h-48 overflow-y-auto border rounded-md p-2">
+                          <div className="flex flex-wrap gap-1">
+                            {viewedProduct.variants.map((variant, i) => {
+                              const label = [variant.nicotineLevel, variant.bottleSize, variant.vgPgRatio]
+                                .filter(Boolean)
+                                .join(" / ") || `Variant ${i + 1}`;
+                              return (
+                                <Badge key={i} variant="outline" className="text-xs">
+                                  {label}
+                                </Badge>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {showAddVariantForm && (
+                      <div className="pt-3 border-t space-y-3">
+                        <p className="text-sm font-medium">Add Your Custom Variant</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Select
+                            value={newVariant.nicotineLevel}
+                            onValueChange={(v) => setNewVariant({ ...newVariant, nicotineLevel: v })}
+                          >
+                            <SelectTrigger data-testid="select-variant-nicotine">
+                              <SelectValue placeholder="Nicotine" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {["0mg", "3mg", "6mg", "12mg", "18mg", "24mg", "50mg"].map((level) => (
+                                <SelectItem key={level} value={level}>{level}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Select
+                            value={newVariant.vgPgRatio}
+                            onValueChange={(v) => setNewVariant({ ...newVariant, vgPgRatio: v })}
+                          >
+                            <SelectTrigger data-testid="select-variant-vgpg">
+                              <SelectValue placeholder="VG/PG" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {["50/50", "60/40", "70/30", "80/20", "MAX VG"].map((ratio) => (
+                                <SelectItem key={ratio} value={ratio}>{ratio}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Select
+                            value={newVariant.bottleSize}
+                            onValueChange={(v) => setNewVariant({ ...newVariant, bottleSize: v })}
+                          >
+                            <SelectTrigger data-testid="select-variant-size">
+                              <SelectValue placeholder="Size" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {["10ml", "30ml", "60ml", "100ml", "120ml"].map((size) => (
+                                <SelectItem key={size} value={size}>{size}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Input
+                            placeholder="SKU (optional)"
+                            value={newVariant.sku}
+                            onChange={(e) => setNewVariant({ ...newVariant, sku: e.target.value })}
+                            data-testid="input-variant-sku"
+                          />
+                          <Input
+                            placeholder="MSRP ($)"
+                            type="number"
+                            step="0.01"
+                            value={newVariant.msrp}
+                            onChange={(e) => setNewVariant({ ...newVariant, msrp: e.target.value })}
+                            data-testid="input-variant-msrp"
+                          />
+                          <Input
+                            placeholder="Cost ($)"
+                            type="number"
+                            step="0.01"
+                            value={newVariant.cost}
+                            onChange={(e) => setNewVariant({ ...newVariant, cost: e.target.value })}
+                            data-testid="input-variant-cost"
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setShowAddVariantForm(false);
+                              setNewVariant({ nicotineLevel: "", vgPgRatio: "", bottleSize: "", sku: "", msrp: "", cost: "" });
+                            }}
+                            data-testid="button-cancel-variant"
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              if (viewProductId) {
+                                addVariantMutation.mutate({ productId: viewProductId, variant: newVariant });
+                              }
+                            }}
+                            disabled={addVariantMutation.isPending || (!newVariant.nicotineLevel && !newVariant.vgPgRatio && !newVariant.bottleSize)}
+                            data-testid="button-save-variant"
+                          >
+                            {addVariantMutation.isPending ? "Adding..." : "Add Variant"}
+                          </Button>
                         </div>
                       </div>
                     )}
@@ -906,7 +1050,11 @@ export default function CustomProducts() {
                 <p className="text-center text-muted-foreground py-4">Product not found</p>
               )}
               <DialogFooter>
-                <Button variant="outline" onClick={() => setViewProductId(null)}>
+                <Button variant="outline" onClick={() => {
+                  setViewProductId(null);
+                  setShowAddVariantForm(false);
+                  setNewVariant({ nicotineLevel: "", vgPgRatio: "", bottleSize: "", sku: "", msrp: "", cost: "" });
+                }}>
                   Close
                 </Button>
                 {viewedProduct && (

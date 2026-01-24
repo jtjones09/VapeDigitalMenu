@@ -1,0 +1,660 @@
+UPDATE DUPLICATE PREVENTION & VARIANT MANAGEMENT - REPLIT AGENT PROMPT
+⚠️ CRITICAL SAFETY RULES
+DO NOT:
+
+❌ Delete any existing products or variants
+❌ Break current duplicate detection functionality
+❌ Remove the matches panel or product details modal
+❌ Change the database schema for products table
+❌ Modify global products or their variants
+
+DO:
+
+✅ FIX the dual-check logic (global existence + shop menu status)
+✅ UPDATE match card to show "In Menu" status
+✅ ADD shop-specific variant functionality
+✅ UPDATE product form layout with visual separation
+✅ ADD variant duplication prevention
+✅ REQUIRE at least 1 variant for all products
+
+
+📋 YOUR TASK
+Problems to fix:
+
+"Use This Product" button doesn't check if product is already in shop's menu
+Can't see all variants in product details modal ("+46 more" button doesn't work)
+No way to add shop-specific variants to global products
+Product form lacks visual separation between product info and variant section
+No validation to prevent duplicate variants
+
+Expected outcome:
+
+Match cards show "✓ In Menu" badge when product is already added
+"Use This" button is disabled when product is in menu
+Shop owners can add their own variants to global products
+Clear visual separation in product form
+Duplicate variant prevention
+
+
+🔍 PART 1: FIX DUAL-CHECK LOGIC FOR MATCH CARDS
+Current behavior: Match cards only show if product exists in global catalog
+NEW behavior: Match cards need to show TWO pieces of information:
+
+Product exists in global? (already working)
+Product is in THIS shop's menu? (need to add)
+
+Update the duplicate search API response:
+File: /server/routes/products.ts
+In the POST /api/products/search-duplicates endpoint:
+CURRENT response structure:
+typescript{
+  matches: [
+    { id, productName, brandName, productType, similarity, variantCount }
+  ]
+}
+NEW response structure - ADD inShopMenu field:
+typescript{
+  matches: [
+    { 
+      id, 
+      productName, 
+      brandName, 
+      productType, 
+      similarity, 
+      variantCount,
+      inShopMenu: boolean  // ← ADD THIS
+    }
+  ]
+}
+Implementation:
+For each matched product, check if it exists in shop_products table for the current shop:
+sql-- For each matched product, check if it's in shop's menu
+SELECT 
+  p.*,
+  COALESCE(b.brand_name, p.custom_brand_name) as brand_name,
+  SIMILARITY(p.product_name, $searchTerm) as similarity,
+  COUNT(DISTINCT pv.id) as variant_count,
+  CASE 
+    WHEN sp.product_id IS NOT NULL THEN true 
+    ELSE false 
+  END as in_shop_menu
+FROM products p
+LEFT JOIN brands b ON p.brand_id = b.id
+LEFT JOIN product_variants pv ON pv.product_id = p.id
+LEFT JOIN shop_products sp ON sp.product_id = p.id AND sp.shop_id = $currentShopId
+WHERE p.is_custom = false
+  AND SIMILARITY(p.product_name, $searchTerm) > 0.6
+GROUP BY p.id, b.brand_name, sp.product_id
+ORDER BY similarity DESC
+LIMIT 5;
+```
+
+**Key point:** The LEFT JOIN with `shop_products` tells us if this product is already in the shop's menu.
+
+---
+
+## 🎨 PART 2: UPDATE MATCH CARD UI
+
+**File:** `/client/src/components/admin/product-matches-panel.tsx`
+
+**Update match card to show status and conditional buttons:**
+
+### Current UI:
+```
+┌────────────────────────────────────┐
+│ Hawaiian POG              43%      │
+│ Naked 100 - e-liquid               │
+│                                    │
+│ [Global] [54 variants]             │
+│                                    │
+│ [View]  [+ Use This]               │
+└────────────────────────────────────┘
+```
+
+### NEW UI - When NOT in shop menu:
+```
+┌────────────────────────────────────┐
+│ Hawaiian POG              43%      │
+│ Naked 100 - e-liquid               │
+│                                    │
+│ [Global] [54 variants]             │
+│                                    │
+│ [View]  [+ Use This]  ← Active     │
+└────────────────────────────────────┘
+```
+
+### NEW UI - When ALREADY in shop menu:
+```
+┌────────────────────────────────────┐
+│ Hawaiian POG              43%      │
+│ Naked 100 - e-liquid               │
+│                                    │
+│ [Global] [54 variants] [✓ In Menu] │ ← Badge
+│                                    │
+│ [View]  [Already Added] ← Disabled │
+└────────────────────────────────────┘
+Implementation logic:
+typescript{matches.map((match) => (
+  <Card key={match.id}>
+    <div>
+      <h4>{match.productName}</h4>
+      <p>{match.brandName} - {match.productType}</p>
+      
+      <div className="badges">
+        <Badge>Global</Badge>
+        <Badge>{match.variantCount} variants</Badge>
+        {match.inShopMenu && (
+          <Badge variant="success">✓ In Menu</Badge>
+        )}
+      </div>
+      
+      <div className="actions">
+        <Button variant="outline" onClick={() => onViewProduct(match.id)}>
+          View
+        </Button>
+        
+        {match.inShopMenu ? (
+          <Button disabled variant="secondary">
+            Already Added
+          </Button>
+        ) : (
+          <Button onClick={() => onUseProduct(match.id)}>
+            + Use This
+          </Button>
+        )}
+      </div>
+    </div>
+  </Card>
+))}
+```
+
+**Styling notes:**
+- "✓ In Menu" badge: Green background, white text
+- "Already Added" button: Gray, disabled cursor
+- "Use This" button: Purple/primary color, active
+
+---
+
+## 📊 PART 3: FIX PRODUCT DETAILS MODAL - SHOW ALL VARIANTS
+
+**Current issue:** Modal shows ~7 variants with "+46 more" button that doesn't expand
+
+**FIX:** Make all variants visible in scrollable container
+
+**File:** Component that renders product details modal
+
+**Current UI:**
+```
+54 Variants
+
+0mg / 30ml / 50/50
+0mg / 60ml / 50/50
+0mg / 100ml / 50/50
+0mg / 30ml / 70/30
+0mg / 60ml / 70/30
+0mg / 100ml / 70/30
+0mg / 30ml / MAX VG
+
++46 more  ← Doesn't work
+```
+
+**NEW UI - Option A (Simple scrollable list):**
+```
+54 Variants
+
+┌─────────────────────────────────┐
+│ 0mg / 30ml / 50/50              │
+│ 0mg / 60ml / 50/50              │
+│ 0mg / 100ml / 50/50             │
+│ 0mg / 30ml / 70/30              │
+│ ... (scroll to see all 54)      │
+│                                 │
+└─────────────────────────────────┘
+↑ Scrollable container (max-height: 400px)
+```
+
+**NEW UI - Option B (Organized by nicotine level):**
+```
+54 Variants
+
+▼ 0mg (18 variants)
+  30ml / 50/50  •  60ml / 50/50  •  100ml / 50/50
+  30ml / 70/30  •  60ml / 70/30  •  100ml / 70/30
+  ...
+
+▼ 3mg (18 variants)
+  30ml / 50/50  •  60ml / 50/50  •  100ml / 50/50
+  ...
+
+▼ 6mg (18 variants)
+  ...
+Choose either approach - both work. Option A is simpler to implement.
+Key requirement: ALL variants must be viewable (no dead-end "+X more" button)
+
+➕ PART 4: ADD SHOP-SPECIFIC VARIANT FUNCTIONALITY
+New feature: Allow shops to add variants to global products that only they can see
+DATABASE CHANGES NEEDED:
+Add to product_variants table:
+typescriptcreatedByShopId: varchar("created_by_shop_id").references(() => shops.id),
+isGlobal: boolean("is_global").default(true),
+Run migration:
+bashnpm run db:push
+Or SQL migration:
+sqlALTER TABLE product_variants
+ADD COLUMN created_by_shop_id VARCHAR REFERENCES shops(id),
+ADD COLUMN is_global BOOLEAN DEFAULT true;
+
+-- Update existing variants to be global
+UPDATE product_variants SET is_global = true WHERE is_global IS NULL;
+Variant visibility logic:
+
+Global variants: is_global = true, created_by_shop_id = null
+Shop-specific variants: is_global = false, created_by_shop_id = 'shop123'
+
+When fetching variants for a shop:
+sqlSELECT * FROM product_variants
+WHERE product_id = $productId
+  AND (is_global = true OR created_by_shop_id = $currentShopId)
+ORDER BY nicotine_level, bottle_size;
+```
+
+---
+
+### ADD BUTTON TO PRODUCT DETAILS MODAL:
+
+**In the product details modal, ADD this section:**
+```
+54 Variants
+[List of all variants...]
+
+────────────────────────────────
+
+Don't see the variant you need?
+
+[+ Add Shop-Specific Variant]
+```
+
+**When clicked, show a form:**
+```
+┌─────────────────────────────────────────┐
+│ Add Variant for Hawaiian POG             │
+│ (Shop-Only Variant)                      │
+├─────────────────────────────────────────┤
+│                                          │
+│ This variant will only be visible to    │
+│ your shop until promoted by admins.      │
+│                                          │
+│ Nicotine Level: [3mg ▼]                 │
+│                                          │
+│ Bottle Size: [120ml ▼]                  │
+│                                          │
+│ VG/PG Ratio: [80/20 ▼]                  │
+│                                          │
+│ Your Price (MSRP): [$29.99]             │
+│                                          │
+│ SKU (optional): [________]               │
+│                                          │
+│ [Cancel]  [Add Variant]                  │
+└─────────────────────────────────────────┘
+```
+
+**Backend endpoint:**
+```
+POST /api/products/:productId/variants/shop-specific
+
+Body: {
+  nicotineLevel: string,
+  bottleSize: string,
+  vgPgRatio: string,
+  msrp: number,
+  sku?: string
+}
+
+Logic:
+1. Verify product exists and is global (is_custom = false)
+2. Check if variant already exists (global OR shop-specific)
+3. If duplicate → Return error "This variant already exists"
+4. Create variant with:
+   - product_id = product ID
+   - is_global = false
+   - created_by_shop_id = current shop
+   - (other fields from request)
+5. If product NOT in shop's menu yet, add to shop_products
+6. Return success
+```
+
+---
+
+## 📝 PART 5: UPDATE PRODUCT CREATION FORM LAYOUT
+
+**File:** `/client/src/pages/admin/custom-products.tsx` (or wherever form is)
+
+**Current layout:** All fields in single section
+
+**NEW layout:** Visual separation between product info and variants
+
+### SECTION 1: PRODUCT INFORMATION (Top)
+```
+┌─────────────────────────────────────────┐
+│ Create Custom Product                    │
+├─────────────────────────────────────────┤
+│                                          │
+│ PRODUCT INFORMATION                      │
+│                                          │
+│ Brand Name *                             │
+│ [Naked 100________]                      │
+│                                          │
+│ Product Name *                           │
+│ [Hawaiian POG_____]                      │
+│                                          │
+│ Product Type *                           │
+│ [E-liquid ▼]                             │
+│                                          │
+│ Nicotine Type *                          │
+│ [Regular ▼]                              │
+│                                          │
+│ Flavor Category *                        │
+│ [Fruit ▼]                                │
+│                                          │
+│ Description                              │
+│ [________________________]               │
+│                                          │
+│ Image URL                                │
+│ [________________________]               │
+│                                          │
+├─────────────────────────────────────────┤ ← HORIZONTAL DIVIDER
+```
+
+### SECTION 2: VARIANT INFORMATION (Bottom)
+```
+│                                          │
+│ VARIANT INFORMATION                      │
+│                                          │
+│ Add at least one variant for this product│
+│                                          │
+│ ┌──────────────────────────────────────┐│
+│ │ Variant 1                    [Remove]││
+│ │                                      ││
+│ │ Nicotine Level: [3mg ▼]             ││
+│ │ Bottle Size: [60ml ▼]               ││
+│ │ VG/PG Ratio: [70/30 ▼]              ││
+│ │ Price (MSRP): [$19.99]              ││
+│ │ SKU (optional): [________]          ││
+│ └──────────────────────────────────────┘│
+│                                          │
+│ [+ Add Another Variant]                  │
+│                                          │
+├─────────────────────────────────────────┤
+│ [Cancel]          [Create Product]       │
+└─────────────────────────────────────────┘
+```
+
+**Styling for divider:**
+- Horizontal line (border-top)
+- Color: muted/gray
+- Margin: 2rem top and bottom
+- Maybe add "or" in divider like: `─── VARIANTS ───`
+
+**Key requirements:**
+1. Clear visual separation between sections
+2. Both sections visible on same page (no multi-step)
+3. Can add multiple variants before submitting
+4. "Remove" button for each variant (except if only 1 remains)
+5. Minimum 1 variant required
+
+---
+
+## 🚫 PART 6: ADD DUPLICATE VARIANT PREVENTION
+
+**Problem:** User could accidentally add same variant twice
+
+**Example:**
+```
+Variant 1: 3mg / 60ml / 70/30
+Variant 2: 3mg / 60ml / 70/30  ← Duplicate!
+SOLUTION: Validate on frontend before allowing add
+When user clicks "+ Add Another Variant":
+typescriptconst addVariant = () => {
+  // Check if this exact combination already exists
+  const isDuplicate = variants.some(v => 
+    v.nicotineLevel === newVariant.nicotineLevel &&
+    v.bottleSize === newVariant.bottleSize &&
+    v.vgPgRatio === newVariant.vgPgRatio
+  );
+  
+  if (isDuplicate) {
+    toast({
+      title: "Duplicate Variant",
+      description: "This variant combination already exists",
+      variant: "destructive"
+    });
+    return;
+  }
+  
+  // Add variant
+  setVariants([...variants, newVariant]);
+};
+Also validate on backend when submitting form:
+typescript// Check for duplicates in submitted variants array
+const variantKeys = variants.map(v => 
+  `${v.nicotineLevel}-${v.bottleSize}-${v.vgPgRatio}`
+);
+
+const hasDuplicates = new Set(variantKeys).size !== variantKeys.length;
+
+if (hasDuplicates) {
+  return res.status(400).json({ 
+    error: "Duplicate variants detected. Each variant must be unique." 
+  });
+}
+Error messaging:
+
+Frontend: Toast notification (red)
+Backend: 400 error with clear message
+Don't allow form submission with duplicates
+
+
+✅ PART 7: ENFORCE MINIMUM 1 VARIANT RULE
+Business rule: ALL products must have at least 1 variant
+Why:
+
+Consistent database design
+E-liquids: Multiple variants (3mg, 6mg, etc.)
+Hardware: Single variant (the product itself + price)
+Disposables: Single variant (fixed product + price)
+
+Frontend validation:
+typescriptconst handleSubmit = () => {
+  if (variants.length === 0) {
+    toast({
+      title: "Variant Required",
+      description: "Please add at least one variant for this product",
+      variant: "destructive"
+    });
+    return;
+  }
+  
+  // Continue with submission
+};
+Backend validation:
+typescriptif (!variants || variants.length === 0) {
+  return res.status(400).json({ 
+    error: "At least one variant is required for all products" 
+  });
+}
+UI hints:
+
+Show helper text: "At least 1 variant required"
+Disable "Remove" button when only 1 variant exists
+Disable "Create Product" button if no variants added
+
+
+🔄 PART 8: UPDATE "USE THIS PRODUCT" LOGIC
+File: Component handling "Use This Product" button click
+CURRENT logic:
+typescriptconst handleUseProduct = async (productId) => {
+  // Always tries to add product
+  await addToShopMenu(productId);
+};
+NEW logic with proper checking:
+typescriptconst handleUseProduct = async (productId, match) => {
+  // Check if already in menu (from match.inShopMenu flag)
+  if (match.inShopMenu) {
+    toast({
+      title: "Already Added",
+      description: "This product is already in your menu",
+      variant: "default"
+    });
+    return;
+  }
+  
+  // Add to shop menu
+  try {
+    await fetch('/api/shop-products', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        shopId: currentShopId,
+        productId: productId,
+        isActive: true,
+        displayOrder: 0
+      })
+    });
+    
+    toast({
+      title: "Product Added!",
+      description: `${match.productName} has been added to your menu`,
+    });
+    
+    // Refresh matches to update "In Menu" status
+    refetchMatches();
+    
+    // Optionally redirect to products page
+    // navigate('/admin/products');
+    
+  } catch (error) {
+    toast({
+      title: "Error",
+      description: error.message || "Failed to add product",
+      variant: "destructive"
+    });
+  }
+};
+Key points:
+
+Check match.inShopMenu flag first
+Show appropriate message if already added
+Refresh match results after adding (to update badges)
+Handle errors gracefully
+
+
+📊 PART 9: TESTING CHECKLIST
+Test all scenarios:
+Scenario 1: Product not in menu
+
+ Type "Hawaiian POG" in form
+ Match shows WITHOUT "In Menu" badge
+ "Use This" button is ACTIVE (purple)
+ Click "Use This"
+ Product added to shop_products
+ Toast: "Product Added!"
+ Match card updates to show "✓ In Menu" badge
+ "Use This" button becomes "Already Added" (disabled)
+
+Scenario 2: Product already in menu
+
+ Type product name that's already in menu
+ Match shows WITH "✓ In Menu" badge
+ "Use This" button is DISABLED/grayed
+ Shows "Already Added" text
+ Clicking does nothing (or shows toast)
+
+Scenario 3: View all variants
+
+ Click "View" on any match
+ Modal opens
+ ALL 54 variants visible (scrollable)
+ No "+X more" dead-end button
+ Can scroll through entire list
+
+Scenario 4: Add shop-specific variant
+
+ Open product details modal
+ Click "+ Add Shop-Specific Variant"
+ Form appears
+ Fill in variant details (120ml, 18mg, 80/20)
+ Click "Add Variant"
+ Variant saved with is_global = false
+ Variant appears in modal (for this shop only)
+ Product added to shop menu if not already there
+
+Scenario 5: Duplicate variant prevention (form)
+
+ Creating custom product
+ Add variant: 3mg / 60ml / 70/30
+ Try to add same variant again
+ Error toast: "Duplicate variant"
+ Variant NOT added to list
+
+Scenario 6: Duplicate variant prevention (shop-specific)
+
+ Viewing global product with variant: 3mg / 60ml / 70/30
+ Try to add shop-specific variant: 3mg / 60ml / 70/30 (same)
+ Error: "This variant already exists"
+ Variant NOT created
+
+Scenario 7: Form layout
+
+ Product info section at top
+ Clear horizontal divider
+ Variant section at bottom
+ Both sections visible (no multi-step)
+ Visual hierarchy clear
+
+Scenario 8: Minimum 1 variant
+
+ Try to submit form with 0 variants
+ Error: "At least one variant required"
+ Form doesn't submit
+ When only 1 variant exists, "Remove" button disabled
+
+Scenario 9: All product types need variants
+
+ Create e-liquid → Requires variants ✓
+ Create disposable → Requires variants ✓
+ Create hardware → Requires variants ✓
+ All types follow same rule
+
+
+🎯 EXPECTED OUTCOME
+BEFORE:
+
+"Use This" button errors when product already in menu ❌
+Can't see all variants ("+46 more" broken) ❌
+No way to add shop-specific variants ❌
+Form has no visual separation ❌
+Can add duplicate variants ❌
+Hardware might not have variants ❌
+
+AFTER:
+
+"Use This" button shows correct state based on shop menu ✅
+All variants visible in scrollable list ✅
+Shops can add their own variants to global products ✅
+Clear visual separation in form (product info | variants) ✅
+Duplicate variants blocked with clear error ✅
+ALL products require at least 1 variant ✅
+
+
+📝 IMPLEMENTATION ORDER
+
+Database changes - Add columns to product_variants (Part 4)
+Backend API updates - Fix duplicate search to include inShopMenu flag (Part 1)
+Match card UI - Show badges and conditional buttons (Part 2)
+Product details modal - Show all variants (Part 3)
+Shop-specific variants - Add button and form (Part 4)
+Form layout - Add visual separation (Part 5)
+Duplicate prevention - Add validation (Part 6)
+Minimum variant rule - Enforce requirement (Part 7)
+"Use This" logic - Fix button behavior (Part 8)
+Test everything - Run through all scenarios (Part 9)

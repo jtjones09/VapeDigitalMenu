@@ -28,6 +28,7 @@ export interface IStorage {
     brandName?: string;
     productName: string;
     productType?: string;
+    shopId?: string;
   }): Promise<{
     id: string;
     productName: string;
@@ -36,6 +37,7 @@ export interface IStorage {
     similarity: number;
     isCustom: boolean;
     variantCount: number;
+    inShopMenu: boolean;
   }[]>;
 
   // Products
@@ -47,6 +49,9 @@ export interface IStorage {
   updateProduct(id: string, product: Partial<InsertProduct>): Promise<Product | undefined>;
   deleteProduct(id: string): Promise<void>;
   createProductVariant(variant: InsertProductVariant): Promise<ProductVariant>;
+  getProductVariantsForShop(productId: string, shopId: string): Promise<ProductVariant[]>;
+  createShopSpecificVariant(productId: string, shopId: string, variant: Partial<InsertProductVariant>): Promise<ProductVariant>;
+  checkVariantDuplicate(productId: string, nicotineLevel?: string, vgPgRatio?: string, bottleSize?: string): Promise<boolean>;
 
   // Shop Products
   getShopProducts(shopId: string): Promise<ShopProductWithDetails[]>;
@@ -141,6 +146,7 @@ export class DatabaseStorage implements IStorage {
     brandName?: string;
     productName: string;
     productType?: string;
+    shopId?: string;
   }): Promise<{
     id: string;
     productName: string;
@@ -149,8 +155,9 @@ export class DatabaseStorage implements IStorage {
     similarity: number;
     isCustom: boolean;
     variantCount: number;
+    inShopMenu: boolean;
   }[]> {
-    const { productName, brandName, brandId, productType } = params;
+    const { productName, brandName, brandId, productType, shopId } = params;
     
     const hasProductName = productName && productName.length >= 3;
     const hasBrandId = !!brandId;
@@ -164,16 +171,18 @@ export class DatabaseStorage implements IStorage {
         COALESCE(b.brand_name, p.custom_brand_name, 'Unknown') as "brandName",
         SIMILARITY(p.product_name, ${productName}) as similarity,
         p.is_custom as "isCustom",
-        COUNT(pv.id)::int as "variantCount"
+        COUNT(DISTINCT pv.id)::int as "variantCount",
+        CASE WHEN sp.product_id IS NOT NULL THEN true ELSE false END as "inShopMenu"
       FROM products p
       LEFT JOIN brands b ON p.brand_id = b.id
       LEFT JOIN product_variants pv ON pv.product_id = p.id
+      LEFT JOIN shop_products sp ON sp.product_id = p.id AND sp.shop_id = ${shopId || ''}
       WHERE p.is_custom = false
         AND ${hasProductName ? sql`SIMILARITY(p.product_name, ${productName}) > 0.3` : sql`false`}
         ${hasBrandId ? sql`AND p.brand_id = ${brandId}` : sql``}
         ${hasBrandName ? sql`AND (SIMILARITY(b.brand_name, ${brandName}) > 0.3 OR SIMILARITY(p.custom_brand_name, ${brandName}) > 0.3)` : sql``}
         ${productType ? sql`AND p.product_type = ${productType}` : sql``}
-      GROUP BY p.id, b.brand_name
+      GROUP BY p.id, b.brand_name, sp.product_id
       ORDER BY similarity DESC
       LIMIT 5
     `);
@@ -186,6 +195,7 @@ export class DatabaseStorage implements IStorage {
       similarity: number;
       isCustom: boolean;
       variantCount: number;
+      inShopMenu: boolean;
     }[];
   }
 
@@ -323,6 +333,48 @@ export class DatabaseStorage implements IStorage {
   async createProductVariant(variant: InsertProductVariant): Promise<ProductVariant> {
     const [newVariant] = await db.insert(productVariants).values(variant).returning();
     return newVariant;
+  }
+
+  async getProductVariantsForShop(productId: string, shopId: string): Promise<ProductVariant[]> {
+    const variants = await db
+      .select()
+      .from(productVariants)
+      .where(
+        and(
+          eq(productVariants.productId, productId),
+          or(
+            eq(productVariants.isGlobal, true),
+            eq(productVariants.createdByShopId, shopId)
+          )
+        )
+      );
+    return variants;
+  }
+
+  async createShopSpecificVariant(productId: string, shopId: string, variant: Partial<InsertProductVariant>): Promise<ProductVariant> {
+    const [newVariant] = await db.insert(productVariants).values({
+      ...variant,
+      productId,
+      isGlobal: false,
+      createdByShopId: shopId,
+    }).returning();
+    return newVariant;
+  }
+
+  async checkVariantDuplicate(productId: string, nicotineLevel?: string, vgPgRatio?: string, bottleSize?: string): Promise<boolean> {
+    const conditions = [eq(productVariants.productId, productId)];
+    
+    if (nicotineLevel) conditions.push(eq(productVariants.nicotineLevel, nicotineLevel));
+    if (vgPgRatio) conditions.push(eq(productVariants.vgPgRatio, vgPgRatio));
+    if (bottleSize) conditions.push(eq(productVariants.bottleSize, bottleSize));
+    
+    const existing = await db
+      .select()
+      .from(productVariants)
+      .where(and(...conditions))
+      .limit(1);
+    
+    return existing.length > 0;
   }
 
   // Shop Products

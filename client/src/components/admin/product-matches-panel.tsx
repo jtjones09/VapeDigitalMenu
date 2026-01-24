@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Check, Eye, Plus, Package } from "lucide-react";
+import { Loader2, Check, Eye, Plus, Package, CheckCircle } from "lucide-react";
 
 interface ProductMatch {
   id: string;
@@ -10,6 +10,7 @@ interface ProductMatch {
   productType: string;
   similarity: number;
   variantCount: number;
+  inShopMenu: boolean;
 }
 
 interface BrandMatch {
@@ -135,13 +136,17 @@ export function ProductMatchesPanel({
                           {Math.round(match.similarity * 100)}%
                         </Badge>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-xs">Global</Badge>
-                          <span className="text-xs text-muted-foreground">
-                            {match.variantCount} variant{match.variantCount !== 1 ? "s" : ""}
-                          </span>
-                        </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="outline" className="text-xs">Global</Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {match.variantCount} variant{match.variantCount !== 1 ? "s" : ""}
+                        </span>
+                        {match.inShopMenu && (
+                          <Badge className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            In Menu
+                          </Badge>
+                        )}
                       </div>
                       <div className="flex gap-2">
                         <Button
@@ -154,15 +159,27 @@ export function ProductMatchesPanel({
                           <Eye className="w-3 h-3 mr-1" />
                           View
                         </Button>
-                        <Button
-                          size="sm"
-                          className="flex-1"
-                          onClick={() => onUseProduct(match.id)}
-                          data-testid={`button-use-${match.id}`}
-                        >
-                          <Plus className="w-3 h-3 mr-1" />
-                          Use This
-                        </Button>
+                        {match.inShopMenu ? (
+                          <Button
+                            size="sm"
+                            className="flex-1"
+                            variant="secondary"
+                            disabled
+                            data-testid={`button-use-${match.id}`}
+                          >
+                            Already Added
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            className="flex-1"
+                            onClick={() => onUseProduct(match.id)}
+                            data-testid={`button-use-${match.id}`}
+                          >
+                            <Plus className="w-3 h-3 mr-1" />
+                            Use This
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </Card>

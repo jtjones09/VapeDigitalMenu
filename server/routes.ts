@@ -323,6 +323,7 @@ export async function registerRoutes(
         brandName: z.string().optional(),
         productName: z.string().min(3, "Product name must be at least 3 characters"),
         productType: z.string().optional(),
+        shopId: z.string().optional(),
       });
 
       const validated = schema.parse(req.body);
@@ -480,6 +481,91 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error reordering products:", error);
       res.status(500).json({ message: "Failed to reorder products" });
+    }
+  });
+
+  // ============ PRODUCT VARIANTS ============
+
+  // Get variants for a product (filtered by shop visibility)
+  app.get("/api/shops/:shopId/products/:productId/variants", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+    try {
+      const shopOwnerId = req.userId!;
+      const { shopId, productId } = req.params;
+      
+      if (!(await verifyShopOwnership(shopId, shopOwnerId))) {
+        return res.status(403).json({ message: "Not authorized to access this shop" });
+      }
+      
+      const variants = await storage.getProductVariantsForShop(productId, shopId);
+      res.json(variants);
+    } catch (error) {
+      console.error("Error fetching variants:", error);
+      res.status(500).json({ message: "Failed to fetch variants" });
+    }
+  });
+
+  // Add shop-specific variant to a product
+  app.post("/api/shops/:shopId/products/:productId/variants", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+    try {
+      const shopOwnerId = req.userId!;
+      const { shopId, productId } = req.params;
+      
+      if (!(await verifyShopOwnership(shopId, shopOwnerId))) {
+        return res.status(403).json({ message: "Not authorized to access this shop" });
+      }
+      
+      const { nicotineLevel, vgPgRatio, bottleSize, sku, msrp, cost } = req.body;
+      
+      // Validate request body
+      const validNicotineLevels = ["0mg", "3mg", "6mg", "12mg", "18mg", "24mg", "50mg"];
+      const validVgPgRatios = ["50/50", "60/40", "70/30", "80/20", "MAX VG"];
+      const validBottleSizes = ["10ml", "30ml", "60ml", "100ml", "120ml"];
+      
+      if (nicotineLevel && !validNicotineLevels.includes(nicotineLevel)) {
+        return res.status(400).json({ message: "Invalid nicotine level" });
+      }
+      if (vgPgRatio && !validVgPgRatios.includes(vgPgRatio)) {
+        return res.status(400).json({ message: "Invalid VG/PG ratio" });
+      }
+      if (bottleSize && !validBottleSizes.includes(bottleSize)) {
+        return res.status(400).json({ message: "Invalid bottle size" });
+      }
+      
+      // At least one variant property must be provided
+      if (!nicotineLevel && !vgPgRatio && !bottleSize) {
+        return res.status(400).json({ message: "At least one variant property (nicotine level, VG/PG ratio, or bottle size) is required" });
+      }
+      
+      // Validate numeric fields
+      const parsedMsrp = msrp !== null && msrp !== undefined ? parseFloat(msrp) : null;
+      const parsedCost = cost !== null && cost !== undefined ? parseFloat(cost) : null;
+      
+      if (parsedMsrp !== null && (isNaN(parsedMsrp) || parsedMsrp < 0)) {
+        return res.status(400).json({ message: "Invalid MSRP value" });
+      }
+      if (parsedCost !== null && (isNaN(parsedCost) || parsedCost < 0)) {
+        return res.status(400).json({ message: "Invalid cost value" });
+      }
+      
+      // Check for duplicate variant
+      const isDuplicate = await storage.checkVariantDuplicate(productId, nicotineLevel, vgPgRatio, bottleSize);
+      if (isDuplicate) {
+        return res.status(409).json({ message: "A variant with these specifications already exists" });
+      }
+      
+      const variant = await storage.createShopSpecificVariant(productId, shopId, {
+        nicotineLevel: nicotineLevel || null,
+        vgPgRatio: vgPgRatio || null,
+        bottleSize: bottleSize || null,
+        sku: sku || null,
+        msrp: parsedMsrp !== null ? String(parsedMsrp) : null,
+        cost: parsedCost !== null ? String(parsedCost) : null,
+      });
+      
+      res.status(201).json(variant);
+    } catch (error) {
+      console.error("Error creating shop-specific variant:", error);
+      res.status(500).json({ message: "Failed to create variant" });
     }
   });
 

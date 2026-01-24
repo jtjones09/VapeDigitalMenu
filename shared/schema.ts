@@ -104,6 +104,8 @@ export const productVariants = pgTable("product_variants", {
   sku: varchar("sku", { length: 100 }),
   msrp: decimal("msrp", { precision: 10, scale: 2 }),
   cost: decimal("cost", { precision: 10, scale: 2 }),
+  isGlobal: boolean("is_global").default(true),
+  createdByShopId: varchar("created_by_shop_id").references(() => shops.id),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -111,6 +113,10 @@ export const productVariantsRelations = relations(productVariants, ({ one }) => 
   product: one(products, {
     fields: [productVariants.productId],
     references: [products.id],
+  }),
+  createdByShop: one(shops, {
+    fields: [productVariants.createdByShopId],
+    references: [shops.id],
   }),
 }));
 
