@@ -443,6 +443,7 @@ export default function CustomProducts() {
   const [viewProductInMenu, setViewProductInMenu] = useState(false);
   const [selectedBrandId, setSelectedBrandId] = useState<string | null>(null);
   const [showAddVariantForm, setShowAddVariantForm] = useState(false);
+  const [pendingAddProductId, setPendingAddProductId] = useState<string | null>(null);
   const [newVariant, setNewVariant] = useState({
     nicotineLevel: "",
     vgPgRatio: "",
@@ -666,45 +667,39 @@ export default function CustomProducts() {
     handleViewProduct(match.id, match.inShopMenu);
   };
 
-  const handleUseProduct = async (productId: string) => {
-    try {
-      const authHeaders = await getAuthHeaders();
-      const response = await fetch(`/api/shops/${shop?.id}/products`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeaders,
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          productId,
-          isActive: true,
-        }),
-      });
+  const handleUseProduct = (productId: string) => {
+    setPendingAddProductId(productId);
+    setViewProductId(productId);
+    setViewProductInMenu(false);
+    setShowAddVariantForm(true);
+    setCreateDialogOpen(false);
+    createForm.reset();
+    setProductMatches([]);
+    setBrandMatches([]);
+    setMatchMode("idle");
+    setSelectedBrandId(null);
+  };
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || "Failed to add product");
-      }
+  const addProductToMenu = async (productId: string) => {
+    const authHeaders = await getAuthHeaders();
+    const response = await fetch(`/api/shops/${shop?.id}/products`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeaders,
+      },
+      credentials: "include",
+      body: JSON.stringify({
+        productId,
+        isActive: true,
+      }),
+    });
 
-      toast({
-        title: "Product added",
-        description: "The product has been added to your menu.",
-      });
-      setCreateDialogOpen(false);
-      createForm.reset();
-      setProductMatches([]);
-      setBrandMatches([]);
-      setMatchMode("idle");
-      setSelectedBrandId(null);
-      queryClient.invalidateQueries({ queryKey: ["/api/shops", shop?.id, "products"] });
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to add product to menu",
-        variant: "destructive",
-      });
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.message || "Failed to add product");
     }
+    queryClient.invalidateQueries({ queryKey: ["/api/shops", shop?.id, "products"] });
   };
 
   const invalidateCustomProducts = () => {
@@ -786,7 +781,10 @@ export default function CustomProducts() {
   });
 
   const addVariantMutation = useMutation({
-    mutationFn: async ({ productId, variant }: { productId: string; variant: typeof newVariant }) => {
+    mutationFn: async ({ productId, variant, addToMenu }: { productId: string; variant: typeof newVariant; addToMenu?: boolean }) => {
+      if (addToMenu) {
+        await addProductToMenu(productId);
+      }
       const response = await apiRequest("POST", `/api/shops/${shop?.id}/products/${productId}/variants`, {
         nicotineLevel: variant.nicotineLevel || null,
         vgPgRatio: variant.vgPgRatio || null,
@@ -797,12 +795,21 @@ export default function CustomProducts() {
       });
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/products", viewProductId] });
-      toast({
-        title: "Variant added",
-        description: "Your custom variant has been added to this product.",
-      });
+      if (variables.addToMenu) {
+        toast({
+          title: "Product added",
+          description: "The product and your custom variant have been added to your menu.",
+        });
+        setViewProductId(null);
+        setPendingAddProductId(null);
+      } else {
+        toast({
+          title: "Variant added",
+          description: "Your custom variant has been added to this product.",
+        });
+      }
       setShowAddVariantForm(false);
       setNewVariant({ nicotineLevel: "", vgPgRatio: "", bottleSize: "", sku: "", msrp: "", cost: "" });
     },
@@ -936,10 +943,23 @@ export default function CustomProducts() {
             </DialogContent>
           </Dialog>
 
-          <Dialog open={!!viewProductId} onOpenChange={(open) => !open && setViewProductId(null)}>
+          <Dialog open={!!viewProductId} onOpenChange={(open) => {
+            if (!open) {
+              setViewProductId(null);
+              setViewProductInMenu(false);
+              setShowAddVariantForm(false);
+              setPendingAddProductId(null);
+              setNewVariant({ nicotineLevel: "", vgPgRatio: "", bottleSize: "", sku: "", msrp: "", cost: "" });
+            }
+          }}>
             <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Product Details</DialogTitle>
+                <DialogTitle>{pendingAddProductId ? "Add Product to Menu" : "Product Details"}</DialogTitle>
+                {pendingAddProductId && (
+                  <DialogDescription>
+                    Add at least one variant to include this product in your menu.
+                  </DialogDescription>
+                )}
               </DialogHeader>
               {viewedProductLoading ? (
                 <div className="flex items-center justify-center py-8">
@@ -1088,13 +1108,17 @@ export default function CustomProducts() {
                             size="sm"
                             onClick={() => {
                               if (viewProductId) {
-                                addVariantMutation.mutate({ productId: viewProductId, variant: newVariant });
+                                addVariantMutation.mutate({ 
+                                  productId: viewProductId, 
+                                  variant: newVariant,
+                                  addToMenu: !!pendingAddProductId 
+                                });
                               }
                             }}
                             disabled={addVariantMutation.isPending || (!newVariant.nicotineLevel && !newVariant.vgPgRatio && !newVariant.bottleSize)}
                             data-testid="button-save-variant"
                           >
-                            {addVariantMutation.isPending ? "Adding..." : "Add Variant"}
+                            {addVariantMutation.isPending ? "Adding..." : (pendingAddProductId ? "Add to Menu" : "Add Variant")}
                           </Button>
                         </div>
                       </div>
@@ -1109,15 +1133,14 @@ export default function CustomProducts() {
                   setViewProductId(null);
                   setViewProductInMenu(false);
                   setShowAddVariantForm(false);
+                  setPendingAddProductId(null);
                   setNewVariant({ nicotineLevel: "", vgPgRatio: "", bottleSize: "", sku: "", msrp: "", cost: "" });
                 }}>
-                  Close
+                  {pendingAddProductId ? "Cancel" : "Close"}
                 </Button>
-                {viewedProduct && !viewProductInMenu && (
+                {viewedProduct && !viewProductInMenu && !pendingAddProductId && (
                   <Button onClick={() => {
                     handleUseProduct(viewedProduct.id);
-                    setViewProductId(null);
-                    setViewProductInMenu(false);
                   }}>
                     Use This Product
                   </Button>
