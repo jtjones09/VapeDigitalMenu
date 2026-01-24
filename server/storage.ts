@@ -150,10 +150,11 @@ export class DatabaseStorage implements IStorage {
     isCustom: boolean;
     variantCount: number;
   }[]> {
-    const { productName, brandName, productType } = params;
+    const { productName, brandName, brandId, productType } = params;
     
     const hasProductName = productName && productName.length >= 3;
-    const hasBrandName = brandName && brandName.length >= 3;
+    const hasBrandId = !!brandId;
+    const hasBrandName = !hasBrandId && brandName && brandName.length >= 3;
     
     const results = await db.execute(sql`
       SELECT 
@@ -161,20 +162,16 @@ export class DatabaseStorage implements IStorage {
         p.product_name as "productName",
         p.product_type as "productType",
         COALESCE(b.brand_name, p.custom_brand_name, 'Unknown') as "brandName",
-        GREATEST(
-          ${hasProductName ? sql`SIMILARITY(p.product_name, ${productName})` : sql`0`},
-          ${hasBrandName ? sql`SIMILARITY(COALESCE(b.brand_name, p.custom_brand_name, ''), ${brandName})` : sql`0`}
-        ) as similarity,
+        SIMILARITY(p.product_name, ${productName}) as similarity,
         p.is_custom as "isCustom",
         COUNT(pv.id)::int as "variantCount"
       FROM products p
       LEFT JOIN brands b ON p.brand_id = b.id
       LEFT JOIN product_variants pv ON pv.product_id = p.id
       WHERE p.is_custom = false
-        AND (
-          ${hasProductName ? sql`SIMILARITY(p.product_name, ${productName}) > 0.3` : sql`false`}
-          OR ${hasBrandName ? sql`(SIMILARITY(b.brand_name, ${brandName}) > 0.3 OR SIMILARITY(p.custom_brand_name, ${brandName}) > 0.3)` : sql`false`}
-        )
+        AND ${hasProductName ? sql`SIMILARITY(p.product_name, ${productName}) > 0.3` : sql`false`}
+        ${hasBrandId ? sql`AND p.brand_id = ${brandId}` : sql``}
+        ${hasBrandName ? sql`AND (SIMILARITY(b.brand_name, ${brandName}) > 0.3 OR SIMILARITY(p.custom_brand_name, ${brandName}) > 0.3)` : sql``}
         ${productType ? sql`AND p.product_type = ${productType}` : sql``}
       GROUP BY p.id, b.brand_name
       ORDER BY similarity DESC
