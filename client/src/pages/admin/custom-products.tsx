@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AdminLayout } from "@/components/admin-layout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -38,6 +38,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Search, Plus, Package, Filter, Pencil, Trash2, Upload, ImageIcon, X, Camera } from "lucide-react";
 import { useShop } from "@/contexts/shop-context";
+import { ProductMatchesPanel } from "@/components/admin/product-matches-panel";
 import { insertProductSchema, type ProductWithBrand } from "@shared/schema";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -65,9 +66,19 @@ const productFormSchema = insertProductSchema.pick({
 }).extend({
   productName: z.string().min(1, "Product name is required"),
   productType: z.string().min(1, "Product type is required"),
+  customBrandName: z.string().optional(),
 });
 
 type ProductFormData = z.infer<typeof productFormSchema>;
+
+interface ProductMatch {
+  id: string;
+  productName: string;
+  brandName: string;
+  productType: string;
+  similarity: number;
+  variantCount: number;
+}
 
 interface ImageUploadProps {
   value: string | null | undefined;
@@ -227,6 +238,9 @@ export default function CustomProducts() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ProductWithBrand | null>(null);
+  const [duplicateMatches, setDuplicateMatches] = useState<ProductMatch[]>([]);
+  const [isSearchingDuplicates, setIsSearchingDuplicates] = useState(false);
+  const [viewProductId, setViewProductId] = useState<string | null>(null);
 
   const { currentShop: shop } = useShop();
 
@@ -262,7 +276,70 @@ export default function CustomProducts() {
       flavorDescription: "",
       nicotineType: "",
       imageUrl: "",
+      customBrandName: "",
     },
+  });
+
+  const watchedProductName = createForm.watch("productName");
+  const watchedProductType = createForm.watch("productType");
+  const watchedBrandName = createForm.watch("customBrandName");
+
+  useEffect(() => {
+    if (!createDialogOpen) {
+      setDuplicateMatches([]);
+      return;
+    }
+
+    if (!watchedProductName || watchedProductName.length < 3) {
+      setDuplicateMatches([]);
+      return;
+    }
+
+    setIsSearchingDuplicates(true);
+
+    const timer = setTimeout(async () => {
+      try {
+        const authHeaders = await getAuthHeaders();
+        const response = await fetch("/api/products/search-duplicates", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...authHeaders,
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            productName: watchedProductName,
+            productType: watchedProductType || undefined,
+            brandName: watchedBrandName || undefined,
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setDuplicateMatches(data.matches || []);
+        }
+      } catch (error) {
+        console.error("Duplicate search failed:", error);
+      } finally {
+        setIsSearchingDuplicates(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [watchedProductName, watchedProductType, watchedBrandName, createDialogOpen]);
+
+  const { data: viewedProduct, isLoading: viewedProductLoading } = useQuery<ProductWithBrand>({
+    queryKey: ["/api/products", viewProductId],
+    queryFn: async () => {
+      const authHeaders = await getAuthHeaders();
+      const res = await fetch(`/api/products/${viewProductId}`, {
+        credentials: "include",
+        headers: authHeaders,
+      });
+      if (!res.ok) throw new Error("Failed to fetch product");
+      return res.json();
+    },
+    enabled: !!viewProductId,
   });
 
   const editForm = useForm<ProductFormData>({
@@ -274,8 +351,51 @@ export default function CustomProducts() {
       flavorDescription: "",
       nicotineType: "",
       imageUrl: "",
+      customBrandName: "",
     },
   });
+
+  const handleViewProduct = (productId: string) => {
+    setViewProductId(productId);
+  };
+
+  const handleUseProduct = async (productId: string) => {
+    try {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`/api/shops/${shop?.id}/products`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          productId,
+          isActive: true,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || "Failed to add product");
+      }
+
+      toast({
+        title: "Product added",
+        description: "The product has been added to your menu.",
+      });
+      setCreateDialogOpen(false);
+      createForm.reset();
+      setDuplicateMatches([]);
+      queryClient.invalidateQueries({ queryKey: ["/api/shops", shop?.id, "products"] });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add product to menu",
+        variant: "destructive",
+      });
+    }
+  };
 
   const invalidateCustomProducts = () => {
     queryClient.invalidateQueries({ 
@@ -364,6 +484,7 @@ export default function CustomProducts() {
       flavorDescription: product.flavorDescription || "",
       nicotineType: product.nicotineType || "",
       imageUrl: product.imageUrl || "",
+      customBrandName: product.customBrandName || product.brand?.brandName || "",
     });
     setEditDialogOpen(true);
   };
@@ -398,6 +519,20 @@ export default function CustomProducts() {
             <FormLabel>Product Name *</FormLabel>
             <FormControl>
               <Input placeholder="Enter product name" {...field} data-testid="input-product-name" />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={form.control}
+        name="customBrandName"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Brand Name</FormLabel>
+            <FormControl>
+              <Input placeholder="Enter brand name (optional)" {...field} data-testid="input-brand-name" />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -536,26 +671,115 @@ export default function CustomProducts() {
                 Add Product
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Create Custom Product</DialogTitle>
                 <DialogDescription>
-                  Add a new product that's unique to your shop.
+                  Add a new product that's unique to your shop. We'll check for similar products in the global catalog.
                 </DialogDescription>
               </DialogHeader>
-              <Form {...createForm}>
-                <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-4">
-                  <ProductFormFields form={createForm} />
-                  <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => setCreateDialogOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button type="submit" disabled={createMutation.isPending} data-testid="button-submit-create">
-                      {createMutation.isPending ? "Creating..." : "Create Product"}
-                    </Button>
-                  </DialogFooter>
-                </form>
-              </Form>
+              <div className="grid md:grid-cols-5 gap-6">
+                <div className="md:col-span-3">
+                  <Form {...createForm}>
+                    <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-4">
+                      <ProductFormFields form={createForm} />
+                      <DialogFooter className="pt-4">
+                        <Button type="button" variant="outline" onClick={() => setCreateDialogOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button type="submit" disabled={createMutation.isPending} data-testid="button-submit-create">
+                          {createMutation.isPending ? "Creating..." : "Create Product"}
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  </Form>
+                </div>
+                <div className="md:col-span-2">
+                  <ProductMatchesPanel
+                    matches={duplicateMatches}
+                    isSearching={isSearchingDuplicates}
+                    onViewProduct={handleViewProduct}
+                    onUseProduct={handleUseProduct}
+                  />
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={!!viewProductId} onOpenChange={(open) => !open && setViewProductId(null)}>
+            <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Product Details</DialogTitle>
+              </DialogHeader>
+              {viewedProductLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+                </div>
+              ) : viewedProduct ? (
+                <div className="space-y-4">
+                  {viewedProduct.imageUrl && (
+                    <div className="aspect-square relative rounded-lg overflow-hidden bg-muted">
+                      <img
+                        src={viewedProduct.imageUrl}
+                        alt={viewedProduct.productName}
+                        className="object-contain w-full h-full"
+                      />
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <h3 className="font-semibold text-lg">{viewedProduct.productName}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {viewedProduct.brand?.brandName || viewedProduct.customBrandName || "Unknown Brand"}
+                    </p>
+                    <div className="flex gap-2">
+                      <Badge variant="outline">{viewedProduct.productType}</Badge>
+                      {viewedProduct.flavorCategory && (
+                        <Badge variant="secondary">{viewedProduct.flavorCategory}</Badge>
+                      )}
+                      {viewedProduct.nicotineType && (
+                        <Badge variant="secondary">{viewedProduct.nicotineType}</Badge>
+                      )}
+                    </div>
+                    {viewedProduct.flavorDescription && (
+                      <p className="text-sm">{viewedProduct.flavorDescription}</p>
+                    )}
+                    {viewedProduct.variants && viewedProduct.variants.length > 0 && (
+                      <div className="pt-2 border-t">
+                        <p className="text-sm font-medium mb-2">
+                          {viewedProduct.variants.length} Variant{viewedProduct.variants.length !== 1 ? "s" : ""}
+                        </p>
+                        <div className="flex flex-wrap gap-1">
+                          {viewedProduct.variants.slice(0, 8).map((variant, i) => (
+                            <Badge key={i} variant="outline" className="text-xs">
+                              {variant.variantName}
+                            </Badge>
+                          ))}
+                          {viewedProduct.variants.length > 8 && (
+                            <Badge variant="outline" className="text-xs">
+                              +{viewedProduct.variants.length - 8} more
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-center text-muted-foreground py-4">Product not found</p>
+              )}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setViewProductId(null)}>
+                  Close
+                </Button>
+                {viewedProduct && (
+                  <Button onClick={() => {
+                    handleUseProduct(viewedProduct.id);
+                    setViewProductId(null);
+                  }}>
+                    Use This Product
+                  </Button>
+                )}
+              </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>

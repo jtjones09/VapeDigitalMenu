@@ -19,7 +19,24 @@ export interface IStorage {
   // Brands
   getBrand(id: string): Promise<Brand | undefined>;
   getAllBrands(): Promise<Brand[]>;
+  searchBrands(query: string): Promise<{ id: string; brandName: string; similarity: number; logoUrl: string | null }[]>;
   createBrand(brand: InsertBrand): Promise<Brand>;
+
+  // Duplicate Detection
+  searchDuplicateProducts(params: {
+    brandId?: string;
+    brandName?: string;
+    productName: string;
+    productType?: string;
+  }): Promise<{
+    id: string;
+    productName: string;
+    productType: string;
+    brandName: string;
+    similarity: number;
+    isCustom: boolean;
+    variantCount: number;
+  }[]>;
 
   // Products
   getProduct(id: string): Promise<ProductWithBrand | undefined>;
@@ -98,6 +115,70 @@ export class DatabaseStorage implements IStorage {
   async createBrand(brand: InsertBrand): Promise<Brand> {
     const [newBrand] = await db.insert(brands).values(brand).returning();
     return newBrand;
+  }
+
+  async searchBrands(query: string): Promise<{ id: string; brandName: string; similarity: number; logoUrl: string | null }[]> {
+    const results = await db.execute(sql`
+      SELECT 
+        id,
+        brand_name as "brandName",
+        logo_url as "logoUrl",
+        SIMILARITY(brand_name, ${query}) as similarity
+      FROM brands
+      WHERE SIMILARITY(brand_name, ${query}) > 0.3
+      ORDER BY similarity DESC
+      LIMIT 10
+    `);
+    return results.rows as { id: string; brandName: string; similarity: number; logoUrl: string | null }[];
+  }
+
+  // Duplicate Detection
+  async searchDuplicateProducts(params: {
+    brandId?: string;
+    brandName?: string;
+    productName: string;
+    productType?: string;
+  }): Promise<{
+    id: string;
+    productName: string;
+    productType: string;
+    brandName: string;
+    similarity: number;
+    isCustom: boolean;
+    variantCount: number;
+  }[]> {
+    const { productName, brandName, productType } = params;
+    
+    const results = await db.execute(sql`
+      SELECT 
+        p.id,
+        p.product_name as "productName",
+        p.product_type as "productType",
+        COALESCE(b.brand_name, p.custom_brand_name, 'Unknown') as "brandName",
+        SIMILARITY(p.product_name, ${productName}) as similarity,
+        p.is_custom as "isCustom",
+        COUNT(pv.id)::int as "variantCount"
+      FROM products p
+      LEFT JOIN brands b ON p.brand_id = b.id
+      LEFT JOIN product_variants pv ON pv.product_id = p.id
+      WHERE p.is_custom = false
+        AND SIMILARITY(p.product_name, ${productName}) > 0.3
+        ${productType ? sql`AND p.product_type = ${productType}` : sql``}
+        ${brandName ? sql`AND (SIMILARITY(b.brand_name, ${brandName}) > 0.3 OR SIMILARITY(p.custom_brand_name, ${brandName}) > 0.3)` : sql``}
+      GROUP BY p.id, b.brand_name
+      ORDER BY similarity DESC
+      LIMIT 5
+    `);
+    
+    return results.rows as {
+      id: string;
+      productName: string;
+      productType: string;
+      brandName: string;
+      similarity: number;
+      isCustom: boolean;
+      variantCount: number;
+    }[];
   }
 
   // Products

@@ -96,6 +96,15 @@ shared/           # Shared code between client and server
 ## Recent Changes
 
 ### January 2026
+- **Added duplicate prevention system** for custom products
+  - Real-time fuzzy matching using PostgreSQL pg_trgm extension
+  - Split layout in create dialog (60% form, 40% matches panel)
+  - ProductMatchesPanel component shows similar global products
+  - View Details modal for inspecting matched products
+  - "Use This Product" action to add existing products to menu
+  - Brand-aware search considers product name and brand name similarity
+  - 500ms debounce with 3-character minimum for search
+  - API endpoint: `POST /api/products/search-duplicates`
 - **Added multi-shop support** for shop owners
   - New `GET /api/shops/list` endpoint returns all shops for an owner
   - New `POST /api/shops/create` endpoint for creating additional shops

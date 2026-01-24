@@ -221,6 +221,7 @@ export async function registerRoutes(
         nicotineType: z.string().optional(),
         imageUrl: z.string().optional(),
         brandId: z.string().optional(),
+        customBrandName: z.string().optional(),
       });
 
       const validated = schema.parse(req.body);
@@ -272,6 +273,7 @@ export async function registerRoutes(
         nicotineType: z.string().optional(),
         imageUrl: z.string().optional(),
         brandId: z.string().optional(),
+        customBrandName: z.string().optional(),
       });
 
       const validated = schema.parse(req.body);
@@ -308,6 +310,58 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error deleting custom product:", error);
       res.status(500).json({ message: "Failed to delete custom product" });
+    }
+  });
+
+  // ============ DUPLICATE DETECTION ============
+
+  // Search for potential duplicate products (fuzzy matching against global catalog)
+  app.post("/api/products/search-duplicates", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+    try {
+      const schema = z.object({
+        brandId: z.string().optional(),
+        brandName: z.string().optional(),
+        productName: z.string().min(3, "Product name must be at least 3 characters"),
+        productType: z.string().optional(),
+      });
+
+      const validated = schema.parse(req.body);
+      const matches = await storage.searchDuplicateProducts(validated);
+      res.json({ matches });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      console.error("Error searching duplicates:", error);
+      res.status(500).json({ message: "Failed to search for duplicates" });
+    }
+  });
+
+  // ============ BRANDS ============
+
+  // Search brands with fuzzy matching
+  app.get("/api/brands/search", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+    try {
+      const q = req.query.q as string;
+      if (!q || q.length < 2) {
+        return res.json({ brands: [] });
+      }
+      const brands = await storage.searchBrands(q);
+      res.json({ brands });
+    } catch (error) {
+      console.error("Error searching brands:", error);
+      res.status(500).json({ message: "Failed to search brands" });
+    }
+  });
+
+  // Get all brands
+  app.get("/api/brands", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+    try {
+      const brands = await storage.getAllBrands();
+      res.json(brands);
+    } catch (error) {
+      console.error("Error fetching brands:", error);
+      res.status(500).json({ message: "Failed to fetch brands" });
     }
   });
 

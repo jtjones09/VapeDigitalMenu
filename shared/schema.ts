@@ -1,5 +1,5 @@
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, boolean, integer, timestamp, decimal } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, boolean, integer, timestamp, decimal, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -60,6 +60,7 @@ export type NicotineType = typeof nicotineTypes[number];
 export const products = pgTable("products", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   brandId: varchar("brand_id").references(() => brands.id),
+  customBrandName: varchar("custom_brand_name", { length: 255 }),
   productName: varchar("product_name", { length: 255 }).notNull(),
   productType: varchar("product_type", { length: 50 }).notNull(),
   flavorCategory: varchar("flavor_category", { length: 50 }),
@@ -130,7 +131,9 @@ export const shopProducts = pgTable("shop_products", {
   isActive: boolean("is_active").default(true),
   customPrice: decimal("custom_price", { precision: 10, scale: 2 }),
   addedAt: timestamp("added_at").defaultNow(),
-});
+}, (table) => ({
+  uniqueShopProduct: unique("unique_shop_product").on(table.shopId, table.productId),
+}));
 
 export const shopProductsRelations = relations(shopProducts, ({ one }) => ({
   shop: one(shops, {
