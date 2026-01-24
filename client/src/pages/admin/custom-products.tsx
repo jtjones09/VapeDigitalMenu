@@ -645,19 +645,21 @@ export default function CustomProducts() {
                       <Package className="w-12 h-12 text-muted-foreground" />
                     </div>
                   )}
-                  {product.flavorCategory && (
-                    <Badge
-                      variant="secondary"
-                      className={`absolute top-3 left-3 z-10 ${flavorColors[product.flavorCategory] || flavorColors.other}`}
-                    >
-                      {product.flavorCategory}
-                    </Badge>
-                  )}
-                  <Badge variant="secondary" className="absolute top-3 right-3 z-10">
-                    Custom
-                  </Badge>
                 </div>
                 <CardContent className="p-4 space-y-3">
+                  <div className="flex flex-wrap gap-2">
+                    {product.flavorCategory && (
+                      <Badge
+                        variant="secondary"
+                        className={flavorColors[product.flavorCategory] || flavorColors.other}
+                      >
+                        {product.flavorCategory}
+                      </Badge>
+                    )}
+                    <Badge variant="secondary">
+                      Custom
+                    </Badge>
+                  </div>
                   <div>
                     <h3 className="font-semibold line-clamp-2" data-testid={`text-custom-product-name-${product.id}`}>
                       {product.productName}
