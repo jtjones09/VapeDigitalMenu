@@ -251,7 +251,7 @@ interface ProductFormFieldsProps {
   onSearchTrigger?: () => void;
 }
 
-const ProductFormFields = ({ form, onSearchTrigger }: ProductFormFieldsProps) => (
+const SearchFormFields = ({ form, onSearchTrigger }: ProductFormFieldsProps) => (
   <div className="space-y-4">
     <FormField
       control={form.control}
@@ -296,7 +296,11 @@ const ProductFormFields = ({ form, onSearchTrigger }: ProductFormFieldsProps) =>
         </FormItem>
       )}
     />
+  </div>
+);
 
+const DetailFormFields = ({ form, onSearchTrigger }: ProductFormFieldsProps) => (
+  <div className="space-y-4">
     <FormField
       control={form.control}
       name="productType"
@@ -412,6 +416,13 @@ const ProductFormFields = ({ form, onSearchTrigger }: ProductFormFieldsProps) =>
         </FormItem>
       )}
     />
+  </div>
+);
+
+const ProductFormFields = ({ form, onSearchTrigger }: ProductFormFieldsProps) => (
+  <div className="space-y-4">
+    <SearchFormFields form={form} onSearchTrigger={onSearchTrigger} />
+    <DetailFormFields form={form} onSearchTrigger={onSearchTrigger} />
   </div>
 );
 
@@ -871,42 +882,57 @@ export default function CustomProducts() {
                   Add a new product that's unique to your shop. We'll check for similar products in the global catalog.
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid md:grid-cols-5 gap-6">
-                <div className="md:col-span-3">
-                  <Form {...createForm}>
-                    <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-4">
-                      <ProductFormFields form={createForm} onSearchTrigger={triggerSearch} />
-                      <DialogFooter className="pt-4">
-                        <Button type="button" variant="outline" onClick={() => {
-                            setCreateDialogOpen(false);
-                            createForm.reset();
-                            setProductMatches([]);
-                            setBrandMatches([]);
-                            setMatchMode("idle");
-                            setSelectedBrandId(null);
-                          }}>
-                          Cancel
-                        </Button>
-                        <Button type="submit" disabled={createMutation.isPending} data-testid="button-submit-create">
-                          {createMutation.isPending ? "Creating..." : "Create Product"}
-                        </Button>
-                      </DialogFooter>
-                    </form>
-                  </Form>
-                </div>
-                <div className="md:col-span-2">
-                  <ProductMatchesPanel
-                    mode={matchMode}
-                    brandMatches={brandMatches}
-                    productMatches={productMatches}
-                    isSearching={isSearching}
-                    onViewProduct={handleViewProduct}
-                    onSelectProduct={handleSelectProduct}
-                    onUseProduct={handleUseProduct}
-                    onUseBrand={handleUseBrand}
-                  />
-                </div>
-              </div>
+              <Form {...createForm}>
+                <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-4">
+                  <div className="grid md:grid-cols-5 gap-6">
+                    <div className="md:col-span-3 space-y-4">
+                      <SearchFormFields form={createForm} onSearchTrigger={triggerSearch} />
+                      
+                      <div className="md:hidden">
+                        <ProductMatchesPanel
+                          mode={matchMode}
+                          brandMatches={brandMatches}
+                          productMatches={productMatches}
+                          isSearching={isSearching}
+                          onViewProduct={handleViewProduct}
+                          onSelectProduct={handleSelectProduct}
+                          onUseProduct={handleUseProduct}
+                          onUseBrand={handleUseBrand}
+                        />
+                      </div>
+                      
+                      <DetailFormFields form={createForm} onSearchTrigger={triggerSearch} />
+                    </div>
+                    <div className="hidden md:block md:col-span-2">
+                      <ProductMatchesPanel
+                        mode={matchMode}
+                        brandMatches={brandMatches}
+                        productMatches={productMatches}
+                        isSearching={isSearching}
+                        onViewProduct={handleViewProduct}
+                        onSelectProduct={handleSelectProduct}
+                        onUseProduct={handleUseProduct}
+                        onUseBrand={handleUseBrand}
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter className="pt-4">
+                    <Button type="button" variant="outline" onClick={() => {
+                        setCreateDialogOpen(false);
+                        createForm.reset();
+                        setProductMatches([]);
+                        setBrandMatches([]);
+                        setMatchMode("idle");
+                        setSelectedBrandId(null);
+                      }}>
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={createMutation.isPending} data-testid="button-submit-create">
+                      {createMutation.isPending ? "Creating..." : "Create Product"}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </Form>
             </DialogContent>
           </Dialog>
 
