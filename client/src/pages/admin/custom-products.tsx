@@ -66,7 +66,11 @@ const productFormSchema = insertProductSchema.pick({
 }).extend({
   productName: z.string().min(1, "Product name is required"),
   productType: z.string().min(1, "Product type is required"),
-  customBrandName: z.string().optional(),
+  customBrandName: z.string().min(1, "Brand name is required"),
+  flavorCategory: z.string().min(1, "Flavor category is required"),
+  nicotineType: z.string().min(1, "Nicotine type is required"),
+  flavorDescription: z.string().optional(),
+  imageUrl: z.string().optional(),
 });
 
 type ProductFormData = z.infer<typeof productFormSchema>;
@@ -280,31 +284,31 @@ export default function CustomProducts() {
     },
   });
 
-  const watchedProductName = createForm.watch("productName");
-  const watchedProductType = createForm.watch("productType");
-  const watchedBrandName = createForm.watch("customBrandName");
-
   const searchTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSearchRef = useRef<string>("");
 
-  useEffect(() => {
+  const triggerDuplicateSearch = () => {
     if (searchTimerRef.current) {
       clearTimeout(searchTimerRef.current);
-      searchTimerRef.current = null;
     }
 
-    if (!createDialogOpen) {
-      setDuplicateMatches([]);
-      setIsSearchingDuplicates(false);
+    const values = createForm.getValues();
+    const productName = values.productName || "";
+    
+    if (productName.length < 3) {
+      if (duplicateMatches.length > 0) {
+        setDuplicateMatches([]);
+      }
       return;
     }
 
-    if (!watchedProductName || watchedProductName.length < 3) {
-      setDuplicateMatches([]);
-      setIsSearchingDuplicates(false);
+    const searchKey = `${productName}|${values.productType}|${values.customBrandName}`;
+    if (searchKey === lastSearchRef.current) {
       return;
     }
 
     searchTimerRef.current = setTimeout(async () => {
+      lastSearchRef.current = searchKey;
       setIsSearchingDuplicates(true);
       try {
         const authHeaders = await getAuthHeaders();
@@ -316,9 +320,9 @@ export default function CustomProducts() {
           },
           credentials: "include",
           body: JSON.stringify({
-            productName: watchedProductName,
-            productType: watchedProductType || undefined,
-            brandName: watchedBrandName || undefined,
+            productName: productName,
+            productType: values.productType || undefined,
+            brandName: values.customBrandName || undefined,
           }),
         });
 
@@ -332,13 +336,18 @@ export default function CustomProducts() {
         setIsSearchingDuplicates(false);
       }
     }, 500);
+  };
 
-    return () => {
+  useEffect(() => {
+    if (!createDialogOpen) {
+      setDuplicateMatches([]);
+      setIsSearchingDuplicates(false);
+      lastSearchRef.current = "";
       if (searchTimerRef.current) {
         clearTimeout(searchTimerRef.current);
       }
-    };
-  }, [watchedProductName, watchedProductType, watchedBrandName, createDialogOpen]);
+    }
+  }, [createDialogOpen]);
 
   const { data: viewedProduct, isLoading: viewedProductLoading } = useQuery<ProductWithBrand>({
     queryKey: ["/api/products", viewProductId],
@@ -521,16 +530,24 @@ export default function CustomProducts() {
     other: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300",
   };
 
-  const ProductFormFields = ({ form }: { form: ReturnType<typeof useForm<ProductFormData>> }) => (
+  const ProductFormFields = ({ form, onSearchTrigger }: { form: ReturnType<typeof useForm<ProductFormData>>; onSearchTrigger?: () => void }) => (
     <div className="space-y-4">
       <FormField
         control={form.control}
         name="customBrandName"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Brand Name</FormLabel>
+            <FormLabel>Brand Name *</FormLabel>
             <FormControl>
-              <Input placeholder="Enter brand name (optional)" {...field} data-testid="input-brand-name" />
+              <Input 
+                placeholder="Enter brand name" 
+                {...field} 
+                onChange={(e) => {
+                  field.onChange(e);
+                  onSearchTrigger?.();
+                }}
+                data-testid="input-brand-name" 
+              />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -544,7 +561,15 @@ export default function CustomProducts() {
           <FormItem>
             <FormLabel>Product Name *</FormLabel>
             <FormControl>
-              <Input placeholder="Enter product name" {...field} data-testid="input-product-name" />
+              <Input 
+                placeholder="Enter product name" 
+                {...field} 
+                onChange={(e) => {
+                  field.onChange(e);
+                  onSearchTrigger?.();
+                }}
+                data-testid="input-product-name" 
+              />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -557,7 +582,10 @@ export default function CustomProducts() {
         render={({ field }) => (
           <FormItem>
             <FormLabel>Product Type *</FormLabel>
-            <Select onValueChange={field.onChange} value={field.value}>
+            <Select onValueChange={(value) => {
+              field.onChange(value);
+              onSearchTrigger?.();
+            }} value={field.value}>
               <FormControl>
                 <SelectTrigger data-testid="select-product-type">
                   <SelectValue placeholder="Select type" />
@@ -581,7 +609,7 @@ export default function CustomProducts() {
         name="nicotineType"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Nicotine Type</FormLabel>
+            <FormLabel>Nicotine Type *</FormLabel>
             <Select onValueChange={field.onChange} value={field.value ?? ""}>
               <FormControl>
                 <SelectTrigger data-testid="select-nicotine-type">
@@ -606,7 +634,7 @@ export default function CustomProducts() {
         name="flavorCategory"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Flavor Category</FormLabel>
+            <FormLabel>Flavor Category *</FormLabel>
             <Select onValueChange={field.onChange} value={field.value ?? ""}>
               <FormControl>
                 <SelectTrigger data-testid="select-flavor-category">
@@ -694,7 +722,7 @@ export default function CustomProducts() {
                 <div className="md:col-span-3">
                   <Form {...createForm}>
                     <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-4">
-                      <ProductFormFields form={createForm} />
+                      <ProductFormFields form={createForm} onSearchTrigger={triggerDuplicateSearch} />
                       <DialogFooter className="pt-4">
                         <Button type="button" variant="outline" onClick={() => setCreateDialogOpen(false)}>
                           Cancel
