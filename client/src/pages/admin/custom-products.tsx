@@ -425,6 +425,7 @@ export default function CustomProducts() {
   const [matchMode, setMatchMode] = useState<"idle" | "brand" | "product">("idle");
   const [isSearching, setIsSearching] = useState(false);
   const [viewProductId, setViewProductId] = useState<string | null>(null);
+  const [viewProductInMenu, setViewProductInMenu] = useState(false);
   const [selectedBrandId, setSelectedBrandId] = useState<string | null>(null);
   const [showAddVariantForm, setShowAddVariantForm] = useState(false);
   const [newVariant, setNewVariant] = useState({
@@ -623,8 +624,12 @@ export default function CustomProducts() {
     },
   });
 
-  const handleViewProduct = (productId: string) => {
+  const handleViewProduct = (productId: string, inMenu?: boolean) => {
     setViewProductId(productId);
+    setViewProductInMenu(!!inMenu);
+    if (inMenu) {
+      setShowAddVariantForm(true);
+    }
   };
 
   const handleUseProduct = async (productId: string) => {
@@ -1052,15 +1057,17 @@ export default function CustomProducts() {
               <DialogFooter>
                 <Button variant="outline" onClick={() => {
                   setViewProductId(null);
+                  setViewProductInMenu(false);
                   setShowAddVariantForm(false);
                   setNewVariant({ nicotineLevel: "", vgPgRatio: "", bottleSize: "", sku: "", msrp: "", cost: "" });
                 }}>
                   Close
                 </Button>
-                {viewedProduct && (
+                {viewedProduct && !viewProductInMenu && (
                   <Button onClick={() => {
                     handleUseProduct(viewedProduct.id);
                     setViewProductId(null);
+                    setViewProductInMenu(false);
                   }}>
                     Use This Product
                   </Button>

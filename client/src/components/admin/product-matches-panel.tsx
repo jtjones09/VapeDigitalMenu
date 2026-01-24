@@ -28,7 +28,7 @@ interface ProductMatchesPanelProps {
   brandMatches: BrandMatch[];
   productMatches: ProductMatch[];
   isSearching: boolean;
-  onViewProduct: (productId: string) => void;
+  onViewProduct: (productId: string, inMenu?: boolean) => void;
   onUseProduct: (productId: string) => void;
   onUseBrand: (brandId: string, brandName: string) => void;
 }
@@ -149,36 +149,38 @@ export function ProductMatchesPanel({
                         )}
                       </div>
                       <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1"
-                          onClick={() => onViewProduct(match.id)}
-                          data-testid={`button-view-${match.id}`}
-                        >
-                          <Eye className="w-3 h-3 mr-1" />
-                          View
-                        </Button>
                         {match.inShopMenu ? (
                           <Button
                             size="sm"
-                            className="flex-1"
-                            variant="secondary"
-                            disabled
-                            data-testid={`button-use-${match.id}`}
-                          >
-                            Already Added
-                          </Button>
-                        ) : (
-                          <Button
-                            size="sm"
-                            className="flex-1"
-                            onClick={() => onUseProduct(match.id)}
-                            data-testid={`button-use-${match.id}`}
+                            className="w-full"
+                            onClick={() => onViewProduct(match.id, true)}
+                            data-testid={`button-view-${match.id}`}
                           >
                             <Plus className="w-3 h-3 mr-1" />
-                            Use This
+                            Add Variant
                           </Button>
+                        ) : (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1"
+                              onClick={() => onViewProduct(match.id, false)}
+                              data-testid={`button-view-${match.id}`}
+                            >
+                              <Eye className="w-3 h-3 mr-1" />
+                              View
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="flex-1"
+                              onClick={() => onUseProduct(match.id)}
+                              data-testid={`button-use-${match.id}`}
+                            >
+                              <Plus className="w-3 h-3 mr-1" />
+                              Use This
+                            </Button>
+                          </>
                         )}
                       </div>
                     </div>
