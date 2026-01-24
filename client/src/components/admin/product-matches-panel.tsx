@@ -56,8 +56,94 @@ export function ProductMatchesPanel({
 }: ProductMatchesPanelProps) {
   const title = mode === "brand" ? "Matching Brands" : mode === "product" ? "Matching Products" : "Possible Matches";
   
-  return (
-    <Card className="h-full">
+  // Mobile compact version (no card wrapper, horizontal scroll for items)
+  const mobileContent = (
+    <div className="md:hidden">
+      {isSearching ? (
+        <div className="flex items-center gap-2 py-2 text-muted-foreground">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span className="text-xs">Searching...</span>
+        </div>
+      ) : mode === "idle" ? (
+        <div className="flex items-center gap-2 py-2 text-muted-foreground">
+          <Package className="w-4 h-4" />
+          <span className="text-xs">Type 3+ characters to search</span>
+        </div>
+      ) : mode === "brand" ? (
+        brandMatches.length === 0 ? (
+          <div className="flex items-center gap-2 py-2 text-muted-foreground">
+            <Check className="w-4 h-4 text-green-500" />
+            <span className="text-xs">No matching brands - this is new!</span>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground font-medium">
+              {brandMatches.length} brand match{brandMatches.length !== 1 ? "es" : ""}:
+            </p>
+            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+              {brandMatches.slice(0, 4).map((brand) => (
+                <Button
+                  key={brand.id}
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0 h-auto py-1.5 px-2"
+                  onClick={() => onUseBrand(brand.id, brand.brandName)}
+                  data-testid={`button-use-brand-${brand.id}`}
+                >
+                  <span className="text-xs font-medium truncate max-w-[120px]">{brand.brandName}</span>
+                  <Badge className={`ml-1.5 text-[10px] px-1 py-0 ${getSimilarityColor(brand.similarity)}`}>
+                    {Math.round(brand.similarity * 100)}%
+                  </Badge>
+                </Button>
+              ))}
+            </div>
+          </div>
+        )
+      ) : (
+        productMatches.length === 0 ? (
+          <div className="flex items-center gap-2 py-2 text-muted-foreground">
+            <Check className="w-4 h-4 text-green-500" />
+            <span className="text-xs">No matches - your product is unique!</span>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground font-medium">
+              {productMatches.length} product match{productMatches.length !== 1 ? "es" : ""}:
+            </p>
+            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+              {productMatches.slice(0, 4).map((match) => (
+                <div
+                  key={match.id}
+                  className="shrink-0 border rounded-md p-2 min-w-[140px] max-w-[160px] space-y-1"
+                  data-testid={`match-card-${match.id}`}
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <p className="text-xs font-medium truncate">{match.productName}</p>
+                    {match.inShopMenu && (
+                      <CheckCircle className="w-3 h-3 text-green-600 shrink-0" />
+                    )}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground truncate">{match.brandName}</p>
+                  <Button
+                    size="sm"
+                    className="w-full h-6 text-[10px]"
+                    onClick={() => match.inShopMenu ? onSelectProduct(match) : onUseProduct(match.id)}
+                    data-testid={match.inShopMenu ? `button-add-variant-${match.id}` : `button-use-${match.id}`}
+                  >
+                    {match.inShopMenu ? "Add Variant" : "Use This"}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      )}
+    </div>
+  );
+
+  // Desktop version (full card layout)
+  const desktopContent = (
+    <Card className="hidden md:block h-full">
       <CardHeader className="pb-3">
         <CardTitle className="text-base">{title}</CardTitle>
       </CardHeader>
@@ -198,5 +284,12 @@ export function ProductMatchesPanel({
         )}
       </CardContent>
     </Card>
+  );
+  
+  return (
+    <>
+      {mobileContent}
+      {desktopContent}
+    </>
   );
 }
