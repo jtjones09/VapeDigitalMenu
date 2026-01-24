@@ -632,26 +632,28 @@ export default function CustomProducts() {
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {customProducts?.map((product) => (
-              <Card key={product.id} className="overflow-hidden" data-testid={`card-custom-product-${product.id}`}>
-                <div className="aspect-square bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center relative">
+              <Card key={product.id} className="w-full overflow-hidden" data-testid={`card-custom-product-${product.id}`}>
+                <div className="w-full aspect-square bg-gradient-to-br from-muted to-muted/50 relative">
                   {product.imageUrl ? (
                     <img
                       src={product.imageUrl}
                       alt={product.productName}
-                      className="w-full h-full object-cover"
+                      className="absolute inset-0 w-full h-full object-cover"
                     />
                   ) : (
-                    <Package className="w-12 h-12 text-muted-foreground" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Package className="w-12 h-12 text-muted-foreground" />
+                    </div>
                   )}
                   {product.flavorCategory && (
                     <Badge
                       variant="secondary"
-                      className={`absolute top-3 left-3 ${flavorColors[product.flavorCategory] || flavorColors.other}`}
+                      className={`absolute top-3 left-3 z-10 ${flavorColors[product.flavorCategory] || flavorColors.other}`}
                     >
                       {product.flavorCategory}
                     </Badge>
                   )}
-                  <Badge variant="secondary" className="absolute top-3 right-3">
+                  <Badge variant="secondary" className="absolute top-3 right-3 z-10">
                     Custom
                   </Badge>
                 </div>
