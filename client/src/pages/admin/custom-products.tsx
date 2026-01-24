@@ -778,7 +778,16 @@ export default function CustomProducts() {
               Create and manage your own products
             </p>
           </div>
-          <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+          <Dialog open={createDialogOpen} onOpenChange={(open) => {
+            setCreateDialogOpen(open);
+            if (!open) {
+              createForm.reset();
+              setProductMatches([]);
+              setBrandMatches([]);
+              setMatchMode("idle");
+              setSelectedBrandId(null);
+            }
+          }}>
             <DialogTrigger asChild>
               <Button data-testid="button-create-product">
                 <Plus className="w-4 h-4 mr-2" />
@@ -798,7 +807,14 @@ export default function CustomProducts() {
                     <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-4">
                       <ProductFormFields form={createForm} onSearchTrigger={triggerSearch} />
                       <DialogFooter className="pt-4">
-                        <Button type="button" variant="outline" onClick={() => setCreateDialogOpen(false)}>
+                        <Button type="button" variant="outline" onClick={() => {
+                            setCreateDialogOpen(false);
+                            createForm.reset();
+                            setProductMatches([]);
+                            setBrandMatches([]);
+                            setMatchMode("idle");
+                            setSelectedBrandId(null);
+                          }}>
                           Cancel
                         </Button>
                         <Button type="submit" disabled={createMutation.isPending} data-testid="button-submit-create">
