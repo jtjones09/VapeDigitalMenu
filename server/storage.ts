@@ -19,7 +19,7 @@ export interface IStorage {
   // Brands
   getBrand(id: string): Promise<Brand | undefined>;
   getAllBrands(): Promise<Brand[]>;
-  searchBrands(query: string): Promise<{ id: string; brandName: string; similarity: number; logoUrl: string | null }[]>;
+  searchBrands(query: string): Promise<{ id: string; brandName: string; similarity: number; logoUrl: string | null; productCount: number }[]>;
   createBrand(brand: InsertBrand): Promise<Brand>;
 
   // Duplicate Detection
@@ -117,19 +117,22 @@ export class DatabaseStorage implements IStorage {
     return newBrand;
   }
 
-  async searchBrands(query: string): Promise<{ id: string; brandName: string; similarity: number; logoUrl: string | null }[]> {
+  async searchBrands(query: string): Promise<{ id: string; brandName: string; similarity: number; logoUrl: string | null; productCount: number }[]> {
     const results = await db.execute(sql`
       SELECT 
-        id,
-        brand_name as "brandName",
-        logo_url as "logoUrl",
-        SIMILARITY(brand_name, ${query}) as similarity
-      FROM brands
-      WHERE SIMILARITY(brand_name, ${query}) > 0.3
+        b.id,
+        b.brand_name as "brandName",
+        b.logo_url as "logoUrl",
+        SIMILARITY(b.brand_name, ${query}) as similarity,
+        COUNT(p.id)::int as "productCount"
+      FROM brands b
+      LEFT JOIN products p ON p.brand_id = b.id AND p.is_custom = false
+      WHERE SIMILARITY(b.brand_name, ${query}) > 0.3
+      GROUP BY b.id
       ORDER BY similarity DESC
       LIMIT 10
     `);
-    return results.rows as { id: string; brandName: string; similarity: number; logoUrl: string | null }[];
+    return results.rows as { id: string; brandName: string; similarity: number; logoUrl: string | null; productCount: number }[];
   }
 
   // Duplicate Detection

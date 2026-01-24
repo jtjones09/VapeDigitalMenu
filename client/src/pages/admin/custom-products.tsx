@@ -84,6 +84,14 @@ interface ProductMatch {
   variantCount: number;
 }
 
+interface BrandMatch {
+  id: string;
+  brandName: string;
+  similarity: number;
+  logoUrl: string | null;
+  productCount: number;
+}
+
 interface ImageUploadProps {
   value: string | null | undefined;
   onChange: (url: string) => void;
@@ -411,9 +419,12 @@ export default function CustomProducts() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ProductWithBrand | null>(null);
-  const [duplicateMatches, setDuplicateMatches] = useState<ProductMatch[]>([]);
-  const [isSearchingDuplicates, setIsSearchingDuplicates] = useState(false);
+  const [productMatches, setProductMatches] = useState<ProductMatch[]>([]);
+  const [brandMatches, setBrandMatches] = useState<BrandMatch[]>([]);
+  const [matchMode, setMatchMode] = useState<"idle" | "brand" | "product">("idle");
+  const [isSearching, setIsSearching] = useState(false);
   const [viewProductId, setViewProductId] = useState<string | null>(null);
+  const [selectedBrandId, setSelectedBrandId] = useState<string | null>(null);
 
   const { currentShop: shop } = useShop();
 
@@ -456,7 +467,7 @@ export default function CustomProducts() {
   const searchTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastSearchRef = useRef<string>("");
 
-  const triggerDuplicateSearch = () => {
+  const triggerSearch = () => {
     if (searchTimerRef.current) {
       clearTimeout(searchTimerRef.current);
     }
@@ -466,52 +477,106 @@ export default function CustomProducts() {
       const productName = values.productName || "";
       const brandName = values.customBrandName || "";
       
-      if (productName.length < 3 && brandName.length < 3) {
-        if (duplicateMatches.length > 0) {
-          setDuplicateMatches([]);
-        }
+      const hasBrandInput = brandName.length >= 3;
+      const hasProductInput = productName.length >= 3;
+      
+      if (!hasBrandInput && !hasProductInput) {
+        setMatchMode("idle");
+        setBrandMatches([]);
+        setProductMatches([]);
         return;
       }
 
-      const searchKey = `${productName}|${values.productType}|${brandName}`;
+      const searchKey = `${productName}|${values.productType}|${brandName}|${selectedBrandId}`;
       if (searchKey === lastSearchRef.current) {
         return;
       }
 
       lastSearchRef.current = searchKey;
-      setIsSearchingDuplicates(true);
+      setIsSearching(true);
+      
       try {
         const authHeaders = await getAuthHeaders();
-        const response = await fetch("/api/products/search-duplicates", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...authHeaders,
-          },
-          credentials: "include",
-          body: JSON.stringify({
-            productName: productName || undefined,
-            productType: values.productType || undefined,
-            brandName: brandName || undefined,
-          }),
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          setDuplicateMatches(data.matches || []);
+        
+        if (hasBrandInput && !selectedBrandId) {
+          setMatchMode("brand");
+          const response = await fetch(`/api/brands/search?q=${encodeURIComponent(brandName)}`, {
+            credentials: "include",
+            headers: authHeaders,
+          });
+          if (response.ok) {
+            const data = await response.json();
+            setBrandMatches(data.brands || []);
+          }
+        } else if (hasProductInput && selectedBrandId) {
+          setMatchMode("product");
+          const response = await fetch("/api/products/search-duplicates", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...authHeaders,
+            },
+            credentials: "include",
+            body: JSON.stringify({
+              productName: productName,
+              productType: values.productType || undefined,
+              brandName: brandName || undefined,
+              brandId: selectedBrandId,
+            }),
+          });
+          if (response.ok) {
+            const data = await response.json();
+            setProductMatches(data.matches || []);
+          }
+        } else if (hasProductInput && !hasBrandInput) {
+          setMatchMode("product");
+          const response = await fetch("/api/products/search-duplicates", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...authHeaders,
+            },
+            credentials: "include",
+            body: JSON.stringify({
+              productName: productName,
+              productType: values.productType || undefined,
+            }),
+          });
+          if (response.ok) {
+            const data = await response.json();
+            setProductMatches(data.matches || []);
+          }
         }
       } catch (error) {
-        console.error("Duplicate search failed:", error);
+        console.error("Search failed:", error);
       } finally {
-        setIsSearchingDuplicates(false);
+        setIsSearching(false);
       }
     }, 500);
   };
 
+  const handleUseBrand = (brandId: string, brandName: string) => {
+    createForm.setValue("customBrandName", brandName);
+    setSelectedBrandId(brandId);
+    setBrandMatches([]);
+    
+    const productName = createForm.getValues("productName") || "";
+    if (productName.length >= 3) {
+      setMatchMode("product");
+      lastSearchRef.current = "";
+      setTimeout(() => triggerSearch(), 0);
+    } else {
+      setMatchMode("idle");
+    }
+  };
+
   useEffect(() => {
     if (!createDialogOpen) {
-      setDuplicateMatches([]);
-      setIsSearchingDuplicates(false);
+      setProductMatches([]);
+      setBrandMatches([]);
+      setMatchMode("idle");
+      setIsSearching(false);
+      setSelectedBrandId(null);
       lastSearchRef.current = "";
       if (searchTimerRef.current) {
         clearTimeout(searchTimerRef.current);
@@ -577,7 +642,10 @@ export default function CustomProducts() {
       });
       setCreateDialogOpen(false);
       createForm.reset();
-      setDuplicateMatches([]);
+      setProductMatches([]);
+      setBrandMatches([]);
+      setMatchMode("idle");
+      setSelectedBrandId(null);
       queryClient.invalidateQueries({ queryKey: ["/api/shops", shop?.id, "products"] });
     } catch (error: any) {
       toast({
@@ -728,7 +796,7 @@ export default function CustomProducts() {
                 <div className="md:col-span-3">
                   <Form {...createForm}>
                     <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-4">
-                      <ProductFormFields form={createForm} onSearchTrigger={triggerDuplicateSearch} />
+                      <ProductFormFields form={createForm} onSearchTrigger={triggerSearch} />
                       <DialogFooter className="pt-4">
                         <Button type="button" variant="outline" onClick={() => setCreateDialogOpen(false)}>
                           Cancel
@@ -742,10 +810,13 @@ export default function CustomProducts() {
                 </div>
                 <div className="md:col-span-2">
                   <ProductMatchesPanel
-                    matches={duplicateMatches}
-                    isSearching={isSearchingDuplicates}
+                    mode={matchMode}
+                    brandMatches={brandMatches}
+                    productMatches={productMatches}
+                    isSearching={isSearching}
                     onViewProduct={handleViewProduct}
                     onUseProduct={handleUseProduct}
+                    onUseBrand={handleUseBrand}
                   />
                 </div>
               </div>
