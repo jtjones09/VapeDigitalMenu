@@ -461,22 +461,23 @@ export default function CustomProducts() {
       clearTimeout(searchTimerRef.current);
     }
 
-    const values = createForm.getValues();
-    const productName = values.productName || "";
-    
-    if (productName.length < 3) {
-      if (duplicateMatches.length > 0) {
-        setDuplicateMatches([]);
-      }
-      return;
-    }
-
-    const searchKey = `${productName}|${values.productType}|${values.customBrandName}`;
-    if (searchKey === lastSearchRef.current) {
-      return;
-    }
-
     searchTimerRef.current = setTimeout(async () => {
+      const values = createForm.getValues();
+      const productName = values.productName || "";
+      const brandName = values.customBrandName || "";
+      
+      if (productName.length < 3 && brandName.length < 3) {
+        if (duplicateMatches.length > 0) {
+          setDuplicateMatches([]);
+        }
+        return;
+      }
+
+      const searchKey = `${productName}|${values.productType}|${brandName}`;
+      if (searchKey === lastSearchRef.current) {
+        return;
+      }
+
       lastSearchRef.current = searchKey;
       setIsSearchingDuplicates(true);
       try {
@@ -489,9 +490,9 @@ export default function CustomProducts() {
           },
           credentials: "include",
           body: JSON.stringify({
-            productName: productName,
+            productName: productName || undefined,
             productType: values.productType || undefined,
-            brandName: values.customBrandName || undefined,
+            brandName: brandName || undefined,
           }),
         });
 

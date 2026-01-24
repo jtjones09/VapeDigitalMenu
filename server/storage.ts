@@ -149,22 +149,30 @@ export class DatabaseStorage implements IStorage {
   }[]> {
     const { productName, brandName, productType } = params;
     
+    const hasProductName = productName && productName.length >= 3;
+    const hasBrandName = brandName && brandName.length >= 3;
+    
     const results = await db.execute(sql`
       SELECT 
         p.id,
         p.product_name as "productName",
         p.product_type as "productType",
         COALESCE(b.brand_name, p.custom_brand_name, 'Unknown') as "brandName",
-        SIMILARITY(p.product_name, ${productName}) as similarity,
+        GREATEST(
+          ${hasProductName ? sql`SIMILARITY(p.product_name, ${productName})` : sql`0`},
+          ${hasBrandName ? sql`SIMILARITY(COALESCE(b.brand_name, p.custom_brand_name, ''), ${brandName})` : sql`0`}
+        ) as similarity,
         p.is_custom as "isCustom",
         COUNT(pv.id)::int as "variantCount"
       FROM products p
       LEFT JOIN brands b ON p.brand_id = b.id
       LEFT JOIN product_variants pv ON pv.product_id = p.id
       WHERE p.is_custom = false
-        AND SIMILARITY(p.product_name, ${productName}) > 0.3
+        AND (
+          ${hasProductName ? sql`SIMILARITY(p.product_name, ${productName}) > 0.3` : sql`false`}
+          OR ${hasBrandName ? sql`(SIMILARITY(b.brand_name, ${brandName}) > 0.3 OR SIMILARITY(p.custom_brand_name, ${brandName}) > 0.3)` : sql`false`}
+        )
         ${productType ? sql`AND p.product_type = ${productType}` : sql``}
-        ${brandName ? sql`AND (SIMILARITY(b.brand_name, ${brandName}) > 0.3 OR SIMILARITY(p.custom_brand_name, ${brandName}) > 0.3)` : sql``}
       GROUP BY p.id, b.brand_name
       ORDER BY similarity DESC
       LIMIT 5
