@@ -6,11 +6,15 @@ import { insertShopSchema, insertShopProductSchema, insertCustomerFavoriteSchema
 import { z } from "zod";
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
+import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  // Register object storage routes for file uploads
+  registerObjectStorageRoutes(app);
+
   // ============ SHOPS ============
   
   // Get all shops for the authenticated owner

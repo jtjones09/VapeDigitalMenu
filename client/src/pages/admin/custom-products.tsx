@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AdminLayout } from "@/components/admin-layout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -36,7 +36,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Search, Plus, Package, Filter, Pencil, Trash2 } from "lucide-react";
+import { Search, Plus, Package, Filter, Pencil, Trash2, Upload, ImageIcon, X, Camera } from "lucide-react";
 import { useShop } from "@/contexts/shop-context";
 import { insertProductSchema, type ProductWithBrand } from "@shared/schema";
 import { useForm } from "react-hook-form";
@@ -68,6 +68,151 @@ const productFormSchema = insertProductSchema.pick({
 });
 
 type ProductFormData = z.infer<typeof productFormSchema>;
+
+interface ImageUploadProps {
+  value: string | null | undefined;
+  onChange: (url: string) => void;
+  disabled?: boolean;
+}
+
+function ImageUpload({ value, onChange, disabled }: ImageUploadProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(value || null);
+  const { toast } = useToast();
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast({
+        title: "Invalid file",
+        description: "Please select an image file.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please select an image under 10MB.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const response = await fetch("/api/uploads/request-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: file.name,
+          size: file.size,
+          contentType: file.type,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to get upload URL");
+      }
+
+      const { uploadURL, objectPath } = await response.json();
+
+      await fetch(uploadURL, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": file.type },
+      });
+
+      setPreviewUrl(objectPath);
+      onChange(objectPath);
+
+      toast({
+        title: "Image uploaded",
+        description: "Your product image has been uploaded.",
+      });
+    } catch (error) {
+      console.error("Upload error:", error);
+      toast({
+        title: "Upload failed",
+        description: "Failed to upload image. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleRemove = () => {
+    setPreviewUrl(null);
+    onChange("");
+  };
+
+  return (
+    <div className="space-y-2">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={handleFileSelect}
+        disabled={disabled || isUploading}
+        data-testid="input-image-file"
+      />
+      
+      {previewUrl ? (
+        <div className="relative w-full aspect-square max-w-[200px] rounded-md overflow-hidden border">
+          <img
+            src={previewUrl}
+            alt="Product preview"
+            className="w-full h-full object-cover"
+          />
+          <Button
+            type="button"
+            size="icon"
+            variant="destructive"
+            className="absolute top-2 right-2"
+            onClick={handleRemove}
+            disabled={disabled || isUploading}
+            data-testid="button-remove-image"
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+      ) : (
+        <div
+          className="w-full aspect-square max-w-[200px] rounded-md border-2 border-dashed flex flex-col items-center justify-center gap-2 cursor-pointer hover-elevate"
+          onClick={() => !disabled && !isUploading && fileInputRef.current?.click()}
+          data-testid="button-upload-image"
+        >
+          {isUploading ? (
+            <>
+              <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              <span className="text-sm text-muted-foreground">Uploading...</span>
+            </>
+          ) : (
+            <>
+              <div className="flex gap-2">
+                <Camera className="w-6 h-6 text-muted-foreground" />
+                <Upload className="w-6 h-6 text-muted-foreground" />
+              </div>
+              <span className="text-sm text-muted-foreground text-center px-2">
+                Tap to take photo or upload
+              </span>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function CustomProducts() {
   const { toast } = useToast();
@@ -355,9 +500,13 @@ export default function CustomProducts() {
         name="imageUrl"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Image URL</FormLabel>
+            <FormLabel>Product Image</FormLabel>
             <FormControl>
-              <Input placeholder="https://example.com/image.jpg" {...field} value={field.value ?? ""} data-testid="input-image-url" />
+              <ImageUpload
+                value={field.value}
+                onChange={field.onChange}
+                disabled={field.disabled}
+              />
             </FormControl>
             <FormMessage />
           </FormItem>
