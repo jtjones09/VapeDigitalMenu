@@ -233,6 +233,175 @@ function ImageUpload({ value, onChange, disabled }: ImageUploadProps) {
   );
 }
 
+interface ProductFormFieldsProps {
+  form: ReturnType<typeof useForm<ProductFormData>>;
+  onSearchTrigger?: () => void;
+}
+
+const ProductFormFields = ({ form, onSearchTrigger }: ProductFormFieldsProps) => (
+  <div className="space-y-4">
+    <FormField
+      control={form.control}
+      name="customBrandName"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>Brand Name *</FormLabel>
+          <FormControl>
+            <Input 
+              placeholder="Enter brand name" 
+              {...field} 
+              onChange={(e) => {
+                field.onChange(e);
+                onSearchTrigger?.();
+              }}
+              data-testid="input-brand-name" 
+            />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+
+    <FormField
+      control={form.control}
+      name="productName"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>Product Name *</FormLabel>
+          <FormControl>
+            <Input 
+              placeholder="Enter product name" 
+              {...field} 
+              onChange={(e) => {
+                field.onChange(e);
+                onSearchTrigger?.();
+              }}
+              data-testid="input-product-name" 
+            />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+
+    <FormField
+      control={form.control}
+      name="productType"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>Product Type *</FormLabel>
+          <Select onValueChange={(value) => {
+            field.onChange(value);
+            onSearchTrigger?.();
+          }} value={field.value}>
+            <FormControl>
+              <SelectTrigger data-testid="select-product-type">
+                <SelectValue placeholder="Select type" />
+              </SelectTrigger>
+            </FormControl>
+            <SelectContent>
+              {productTypes.map((type) => (
+                <SelectItem key={type} value={type}>
+                  {type.charAt(0).toUpperCase() + type.slice(1)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+
+    <FormField
+      control={form.control}
+      name="nicotineType"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>Nicotine Type *</FormLabel>
+          <Select onValueChange={field.onChange} value={field.value ?? ""}>
+            <FormControl>
+              <SelectTrigger data-testid="select-nicotine-type">
+                <SelectValue placeholder="Select nicotine type" />
+              </SelectTrigger>
+            </FormControl>
+            <SelectContent>
+              {nicotineTypes.map((type) => (
+                <SelectItem key={type} value={type}>
+                  {type.charAt(0).toUpperCase() + type.slice(1)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+
+    <FormField
+      control={form.control}
+      name="flavorCategory"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>Flavor Category *</FormLabel>
+          <Select onValueChange={field.onChange} value={field.value ?? ""}>
+            <FormControl>
+              <SelectTrigger data-testid="select-flavor-category">
+                <SelectValue placeholder="Select flavor" />
+              </SelectTrigger>
+            </FormControl>
+            <SelectContent>
+              {flavorCategories.map((flavor) => (
+                <SelectItem key={flavor} value={flavor}>
+                  {flavor.charAt(0).toUpperCase() + flavor.slice(1)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+
+    <FormField
+      control={form.control}
+      name="flavorDescription"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>Flavor Description</FormLabel>
+          <FormControl>
+            <Textarea
+              placeholder="Describe the flavor profile..."
+              className="resize-none"
+              {...field}
+              value={field.value ?? ""}
+              data-testid="input-flavor-description"
+            />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+
+    <FormField
+      control={form.control}
+      name="imageUrl"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>Product Image</FormLabel>
+          <FormControl>
+            <ImageUpload
+              value={field.value}
+              onChange={field.onChange}
+              disabled={field.disabled}
+            />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  </div>
+);
+
 export default function CustomProducts() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -529,170 +698,6 @@ export default function CustomProducts() {
     candy: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
     other: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300",
   };
-
-  const ProductFormFields = ({ form, onSearchTrigger }: { form: ReturnType<typeof useForm<ProductFormData>>; onSearchTrigger?: () => void }) => (
-    <div className="space-y-4">
-      <FormField
-        control={form.control}
-        name="customBrandName"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Brand Name *</FormLabel>
-            <FormControl>
-              <Input 
-                placeholder="Enter brand name" 
-                {...field} 
-                onChange={(e) => {
-                  field.onChange(e);
-                  onSearchTrigger?.();
-                }}
-                data-testid="input-brand-name" 
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      <FormField
-        control={form.control}
-        name="productName"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Product Name *</FormLabel>
-            <FormControl>
-              <Input 
-                placeholder="Enter product name" 
-                {...field} 
-                onChange={(e) => {
-                  field.onChange(e);
-                  onSearchTrigger?.();
-                }}
-                data-testid="input-product-name" 
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      <FormField
-        control={form.control}
-        name="productType"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Product Type *</FormLabel>
-            <Select onValueChange={(value) => {
-              field.onChange(value);
-              onSearchTrigger?.();
-            }} value={field.value}>
-              <FormControl>
-                <SelectTrigger data-testid="select-product-type">
-                  <SelectValue placeholder="Select type" />
-                </SelectTrigger>
-              </FormControl>
-              <SelectContent>
-                {productTypes.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {type.charAt(0).toUpperCase() + type.slice(1)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      <FormField
-        control={form.control}
-        name="nicotineType"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Nicotine Type *</FormLabel>
-            <Select onValueChange={field.onChange} value={field.value ?? ""}>
-              <FormControl>
-                <SelectTrigger data-testid="select-nicotine-type">
-                  <SelectValue placeholder="Select nicotine type" />
-                </SelectTrigger>
-              </FormControl>
-              <SelectContent>
-                {nicotineTypes.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {type.charAt(0).toUpperCase() + type.slice(1)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      <FormField
-        control={form.control}
-        name="flavorCategory"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Flavor Category *</FormLabel>
-            <Select onValueChange={field.onChange} value={field.value ?? ""}>
-              <FormControl>
-                <SelectTrigger data-testid="select-flavor-category">
-                  <SelectValue placeholder="Select flavor" />
-                </SelectTrigger>
-              </FormControl>
-              <SelectContent>
-                {flavorCategories.map((flavor) => (
-                  <SelectItem key={flavor} value={flavor}>
-                    {flavor.charAt(0).toUpperCase() + flavor.slice(1)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      <FormField
-        control={form.control}
-        name="flavorDescription"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Flavor Description</FormLabel>
-            <FormControl>
-              <Textarea
-                placeholder="Describe the flavor profile..."
-                className="resize-none"
-                {...field}
-                value={field.value ?? ""}
-                data-testid="input-flavor-description"
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      <FormField
-        control={form.control}
-        name="imageUrl"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Product Image</FormLabel>
-            <FormControl>
-              <ImageUpload
-                value={field.value}
-                onChange={field.onChange}
-                disabled={field.disabled}
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-    </div>
-  );
 
   return (
     <AdminLayout>
