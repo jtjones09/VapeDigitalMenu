@@ -170,6 +170,10 @@ Two parallel route sets for personal and kiosk modes:
 - When created, custom products are automatically added to the shop's menu
 - Custom products use `isCustom=true` and `createdByShopId` in the products table
 - The global product catalog (/admin/products) only shows platform products, not custom products
+- Image upload: Shop owners can upload product images directly (supports mobile camera)
+  - Uses Replit Object Storage for file storage
+  - Upload endpoint requires authentication
+  - Images stored at `/objects/uploads/...` path and served via `/objects/*` route
 
 ### Demo Shop
 - Shop ID: "demo"
