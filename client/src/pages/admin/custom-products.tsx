@@ -286,7 +286,7 @@ export default function CustomProducts() {
         render={({ field }) => (
           <FormItem>
             <FormLabel>Flavor Category</FormLabel>
-            <Select onValueChange={field.onChange} value={field.value}>
+            <Select onValueChange={field.onChange} value={field.value ?? ""}>
               <FormControl>
                 <SelectTrigger data-testid="select-flavor-category">
                   <SelectValue placeholder="Select flavor" />
@@ -317,6 +317,7 @@ export default function CustomProducts() {
                 placeholder="Describe the flavor profile..."
                 className="resize-none"
                 {...field}
+                value={field.value ?? ""}
                 data-testid="input-flavor-description"
               />
             </FormControl>
@@ -331,7 +332,7 @@ export default function CustomProducts() {
         render={({ field }) => (
           <FormItem>
             <FormLabel>Nicotine Type</FormLabel>
-            <Select onValueChange={field.onChange} value={field.value}>
+            <Select onValueChange={field.onChange} value={field.value ?? ""}>
               <FormControl>
                 <SelectTrigger data-testid="select-nicotine-type">
                   <SelectValue placeholder="Select nicotine type" />
@@ -358,7 +359,7 @@ export default function CustomProducts() {
           <FormItem>
             <FormLabel>Image URL</FormLabel>
             <FormControl>
-              <Input placeholder="https://example.com/image.jpg" {...field} data-testid="input-image-url" />
+              <Input placeholder="https://example.com/image.jpg" {...field} value={field.value ?? ""} data-testid="input-image-url" />
             </FormControl>
             <FormMessage />
           </FormItem>

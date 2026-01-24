@@ -164,6 +164,13 @@ Two parallel route sets for personal and kiosk modes:
   - Staff reset button for session clearing
   - Larger touch-friendly UI elements
 
+### Custom Products
+- Shop owners can create their own products unique to their store (in addition to browsing the global catalog)
+- Custom products are managed at /admin/custom-products ("My Products" in navigation)
+- When created, custom products are automatically added to the shop's menu
+- Custom products use `isCustom=true` and `createdByShopId` in the products table
+- The global product catalog (/admin/products) only shows platform products, not custom products
+
 ### Demo Shop
 - Shop ID: "demo"
 - 200 products across 25 real vape brands (115 e-liquids, 50 disposables, 35 hardware/accessories)
