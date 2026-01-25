@@ -71,6 +71,12 @@ const productFormSchema = insertProductSchema.pick({
   nicotineType: z.string().min(1, "Nicotine type is required"),
   flavorDescription: z.string().optional(),
   imageUrl: z.string().optional(),
+  variantNicotineLevel: z.string().optional(),
+  variantVgPgRatio: z.string().optional(),
+  variantBottleSize: z.string().optional(),
+  variantSku: z.string().optional(),
+  variantMsrp: z.string().optional(),
+  variantCost: z.string().optional(),
 });
 
 type ProductFormData = z.infer<typeof productFormSchema>;
@@ -488,6 +494,12 @@ export default function CustomProducts() {
       nicotineType: "",
       imageUrl: "",
       customBrandName: "",
+      variantNicotineLevel: "",
+      variantVgPgRatio: "",
+      variantBottleSize: "",
+      variantSku: "",
+      variantMsrp: "",
+      variantCost: "",
     },
   });
 
@@ -717,7 +729,23 @@ export default function CustomProducts() {
 
   const createMutation = useMutation({
     mutationFn: async (data: ProductFormData) => {
-      await apiRequest("POST", `/api/shops/${shop?.id}/custom-products`, data);
+      await apiRequest("POST", `/api/shops/${shop?.id}/custom-products`, {
+        productName: data.productName,
+        productType: data.productType,
+        flavorCategory: data.flavorCategory,
+        flavorDescription: data.flavorDescription,
+        nicotineType: data.nicotineType,
+        imageUrl: data.imageUrl,
+        customBrandName: data.customBrandName,
+        variant: {
+          nicotineLevel: data.variantNicotineLevel || null,
+          vgPgRatio: data.variantVgPgRatio || null,
+          bottleSize: data.variantBottleSize || null,
+          sku: data.variantSku || null,
+          msrp: data.variantMsrp ? parseFloat(data.variantMsrp) : null,
+          cost: data.variantCost ? parseFloat(data.variantCost) : null,
+        },
+      });
     },
     onSuccess: () => {
       invalidateCustomProducts();
@@ -909,6 +937,84 @@ export default function CustomProducts() {
                       </div>
                       
                       <DetailFormFields form={createForm} onSearchTrigger={triggerSearch} />
+                      
+                      <div className="border-t pt-4 mt-4">
+                        <h4 className="text-sm font-medium mb-3">Initial Variant (Required)</h4>
+                        <div className="grid grid-cols-2 gap-3">
+                          <FormField
+                            control={createForm.control}
+                            name="variantNicotineLevel"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-xs">Nicotine Level</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="e.g., 3mg" {...field} data-testid="input-variant-nicotine" />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={createForm.control}
+                            name="variantVgPgRatio"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-xs">VG/PG Ratio</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="e.g., 70/30" {...field} data-testid="input-variant-vgpg" />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={createForm.control}
+                            name="variantBottleSize"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-xs">Size</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="e.g., 60ml" {...field} data-testid="input-variant-size" />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={createForm.control}
+                            name="variantSku"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-xs">SKU</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Optional" {...field} data-testid="input-variant-sku" />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={createForm.control}
+                            name="variantMsrp"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-xs">MSRP ($)</FormLabel>
+                                <FormControl>
+                                  <Input type="number" step="0.01" placeholder="0.00" {...field} data-testid="input-variant-msrp" />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={createForm.control}
+                            name="variantCost"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-xs">Cost ($)</FormLabel>
+                                <FormControl>
+                                  <Input type="number" step="0.01" placeholder="0.00" {...field} data-testid="input-variant-cost" />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      </div>
                     </div>
                     <div className="hidden md:block md:col-span-2">
                       <ProductMatchesPanel

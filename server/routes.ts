@@ -222,13 +222,44 @@ export async function registerRoutes(
         imageUrl: z.string().optional(),
         brandId: z.string().optional(),
         customBrandName: z.string().optional(),
+        variant: z.object({
+          nicotineLevel: z.string().nullable().optional(),
+          vgPgRatio: z.string().nullable().optional(),
+          bottleSize: z.string().nullable().optional(),
+          sku: z.string().nullable().optional(),
+          msrp: z.number().nullable().optional(),
+          cost: z.number().nullable().optional(),
+        }).optional(),
       });
 
       const validated = schema.parse(req.body);
+      
+      if (!validated.variant) {
+        return res.status(400).json({ message: "At least one variant is required" });
+      }
 
       const product = await storage.createProduct({
-        ...validated,
+        productName: validated.productName,
+        productType: validated.productType,
+        flavorCategory: validated.flavorCategory,
+        flavorDescription: validated.flavorDescription,
+        nicotineType: validated.nicotineType,
+        imageUrl: validated.imageUrl,
+        brandId: validated.brandId,
+        customBrandName: validated.customBrandName,
         isCustom: true,
+        createdByShopId: shopId,
+      });
+
+      await storage.createProductVariant({
+        productId: product.id,
+        nicotineLevel: validated.variant.nicotineLevel || null,
+        vgPgRatio: validated.variant.vgPgRatio || null,
+        bottleSize: validated.variant.bottleSize || null,
+        sku: validated.variant.sku || null,
+        msrp: validated.variant.msrp ? String(validated.variant.msrp) : null,
+        cost: validated.variant.cost ? String(validated.variant.cost) : null,
+        isGlobal: false,
         createdByShopId: shopId,
       });
 
