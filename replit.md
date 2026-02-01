@@ -95,6 +95,17 @@ shared/           # Shared code between client and server
 
 ## Recent Changes
 
+### February 2026
+- **Added environment tracking for users**
+  - New `signup_environment` column on `shop_owners` and `customers` tables
+  - Automatically set to 'production' or 'development' based on NODE_ENV when user signs up
+  - Helps distinguish test accounts from real users when using same Supabase for both environments
+- **Variant requirement for all products**
+  - Custom products now require at least one variant when creating
+  - Variant fields (nicotine, VG/PG, size, SKU, MSRP, cost) added to create product form
+  - Backend validates variant data before creating product
+  - Global products require variant to be added before appearing in menu
+
 ### January 2026
 - **Added shop-specific product variants** for customization
   - Shop owners can add their own variants to global products

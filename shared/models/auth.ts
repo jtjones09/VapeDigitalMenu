@@ -21,6 +21,7 @@ export const shopOwners = pgTable("shop_owners", {
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
+  signupEnvironment: varchar("signup_environment", { length: 20 }).default("development"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

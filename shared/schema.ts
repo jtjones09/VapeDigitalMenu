@@ -197,6 +197,7 @@ export const customers = pgTable("customers", {
   lastName: varchar("last_name", { length: 100 }),
   dateOfBirth: varchar("date_of_birth", { length: 10 }),
   isAgeVerified: boolean("is_age_verified").default(false),
+  signupEnvironment: varchar("signup_environment", { length: 20 }).default("development"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

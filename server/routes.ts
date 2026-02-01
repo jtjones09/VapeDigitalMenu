@@ -50,11 +50,32 @@ export async function registerRoutes(
   app.post("/api/shops", isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
       const shopOwnerId = req.userId!;
+      const userEmail = req.userEmail;
       
       const existingShop = await storage.getShopByOwnerId(shopOwnerId);
       if (existingShop) {
         return res.status(400).json({ message: "Shop already exists. Use /api/shops/create for additional shops." });
       }
+
+      // Determine environment based on NODE_ENV
+      const signupEnvironment = process.env.NODE_ENV === 'production' ? 'production' : 'development';
+      
+      // Upsert shop owner with environment tracking
+      await db
+        .insert(shopOwners)
+        .values({
+          id: shopOwnerId,
+          email: userEmail,
+          signupEnvironment,
+        })
+        .onConflictDoUpdate({
+          target: shopOwners.id,
+          set: {
+            email: userEmail,
+            signupEnvironment,
+            updatedAt: new Date(),
+          },
+        });
 
       const data = insertShopSchema.parse({
         ...req.body,
@@ -1079,7 +1100,8 @@ export async function registerRoutes(
         
         customer = updated;
       } else {
-        // Create new customer
+        // Create new customer with environment tracking
+        const signupEnvironment = process.env.NODE_ENV === 'production' ? 'production' : 'development';
         const [newCustomer] = await db
           .insert(customers)
           .values({
@@ -1089,6 +1111,7 @@ export async function registerRoutes(
             lastName: validated.lastName,
             dateOfBirth: validated.dateOfBirth,
             isAgeVerified: true,
+            signupEnvironment,
           })
           .returning();
         
