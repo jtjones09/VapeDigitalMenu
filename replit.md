@@ -22,8 +22,8 @@ Preferred communication style: Simple, everyday language.
 - **Runtime**: Node.js with Express.js
 - **Language**: TypeScript with ESM modules
 - **API Design**: RESTful API endpoints under `/api/*` prefix
-- **Authentication**: Supabase OTP (email verification codes)
-- **Session Management**: Supabase JWT tokens validated via service role key
+- **Authentication**: Clerk (email code verification)
+- **Session Management**: Clerk JWT tokens validated via `@clerk/express`
 
 ### Data Storage
 - **Database**: PostgreSQL
@@ -42,11 +42,13 @@ Preferred communication style: Simple, everyday language.
 - **KioskSessions**: Guest/kiosk session tracking with auto-expiry
 
 ### Authentication Flow
-- Supabase handles user authentication via OTP (email codes)
-- New users: Sign up page collects email, owner name, shop name, location → sends OTP → verify → creates shop
-- Returning users: Login page collects email → sends OTP → verify → redirects to dashboard
+- Clerk handles user authentication via email code verification
+- New users: Sign up page collects email, owner name, shop name, location → sends email code → verify → creates shop
+- Returning users: Login page collects email → sends email code → verify → redirects to dashboard
 - JWT tokens sent in Authorization header for all API requests
-- Protected routes use `isAuthenticated` middleware (validates JWT via Supabase)
+- Protected routes use `isAuthenticated` middleware (validates JWT via Clerk `verifyToken`)
+- Frontend uses `@clerk/clerk-react` hooks (`useSignIn`, `useSignUp`, `useAuth`)
+- Backend uses `@clerk/express` for token verification
 
 ### Build System
 - Development: Vite dev server with HMR proxied through Express
@@ -62,7 +64,7 @@ client/           # React frontend application
     hooks/        # Custom React hooks
     lib/          # Utilities and query client
 server/           # Express backend
-  replit_integrations/auth/  # Replit Auth implementation
+  auth/clerk.ts    # Clerk JWT authentication middleware
 shared/           # Shared code between client and server
   schema.ts       # Drizzle database schema
   models/         # Shared type definitions
@@ -75,9 +77,9 @@ shared/           # Shared code between client and server
 - Uses Drizzle ORM for type-safe queries and migrations
 
 ### Authentication
-- **Supabase**: Email OTP authentication
-- Requires `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (frontend)
-- Requires `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (backend)
+- **Clerk**: Email code verification authentication
+- Requires `VITE_CLERK_PUBLISHABLE_KEY` (frontend)
+- Requires `CLERK_SECRET_KEY` (backend)
 
 ### UI Libraries
 - **Radix UI**: Headless component primitives
@@ -95,11 +97,21 @@ shared/           # Shared code between client and server
 
 ## Recent Changes
 
+### March 2026
+- **Migrated authentication from Supabase OTP to Clerk**
+  - Frontend: `@clerk/clerk-react` with `useSignIn`/`useSignUp` hooks for email code verification
+  - Backend: `@clerk/express` with `clerkClient().verifyToken()` for JWT validation
+  - All auth pages (login, signup, customer login, admin access modal) rewritten for Clerk
+  - Auth provider (`use-auth.tsx`) rewritten using Clerk's `useUser`/`useAuth` hooks
+  - Query client uses `setAuthTokenGetter` pattern to inject Clerk's `getToken`
+  - Removed `@supabase/supabase-js` dependency and `client/src/lib/supabase.ts`
+  - Server auth file: `server/auth/clerk.ts` (replaced `server/auth/supabase.ts`)
+
 ### February 2026
 - **Added environment tracking for users**
   - New `signup_environment` column on `shop_owners` and `customers` tables
   - Automatically set to 'production' or 'development' based on NODE_ENV when user signs up
-  - Helps distinguish test accounts from real users when using same Supabase for both environments
+  - Helps distinguish test accounts from real users when using same auth provider for both environments
 - **Variant requirement for all products**
   - Custom products now require at least one variant when creating
   - Variant fields (nicotine, VG/PG, size, SKU, MSRP, cost) added to create product form
@@ -156,7 +168,7 @@ shared/           # Shared code between client and server
 - Fixed seed script to insert msrp values as numbers instead of strings
 - Added demo shop with ID "demo" for testing and demonstration
 - Expanded product catalog: 25 real vape brands, 200 products, 5,360 variants
-- Migrated authentication from Replit Auth to Supabase OTP (email verification codes)
+- Migrated authentication from Replit Auth to Supabase OTP, then later to Clerk (email code verification)
 - Fixed logout redirect to properly navigate to landing page
 
 ## Key Features

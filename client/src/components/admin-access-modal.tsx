@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { supabase } from "@/lib/supabase";
+import { useSignIn } from "@clerk/clerk-react";
 import { queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,7 @@ interface AdminAccessModalProps {
 export function AdminAccessModal({ open, onOpenChange, shopId }: AdminAccessModalProps) {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { signIn, setActive, isLoaded } = useSignIn();
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [step, setStep] = useState<"email" | "verify">("email");
@@ -46,7 +47,7 @@ export function AdminAccessModal({ open, onOpenChange, shopId }: AdminAccessModa
 
   const handleVerifyEmail = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) return;
+    if (!email || !isLoaded) return;
 
     setIsLoading(true);
     try {
@@ -62,14 +63,22 @@ export function AdminAccessModal({ open, onOpenChange, shopId }: AdminAccessModa
         throw new Error(data.message || "Failed to verify email");
       }
 
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          shouldCreateUser: false,
-        },
+      const result = await signIn.create({
+        identifier: email,
       });
 
-      if (error) throw error;
+      const emailFactor = result.supportedFirstFactors?.find(
+        (f: any) => f.strategy === "email_code"
+      );
+
+      if (!emailFactor || !("emailAddressId" in emailFactor)) {
+        throw new Error("Email code verification not available");
+      }
+
+      await signIn.prepareFirstFactor({
+        strategy: "email_code",
+        emailAddressId: emailFactor.emailAddressId,
+      });
 
       setStep("verify");
       toast({
@@ -77,9 +86,10 @@ export function AdminAccessModal({ open, onOpenChange, shopId }: AdminAccessModa
         description: "Check your email for the verification code.",
       });
     } catch (error: any) {
+      const msg = error?.errors?.[0]?.longMessage || error.message || "Email not authorized for this shop";
       toast({
         title: "Access denied",
-        description: error.message || "Email not authorized for this shop",
+        description: msg,
         variant: "destructive",
       });
     } finally {
@@ -88,34 +98,35 @@ export function AdminAccessModal({ open, onOpenChange, shopId }: AdminAccessModa
   };
 
   const handleVerifyOTP = async (code: string) => {
-    if (code.length !== 6) return;
+    if (code.length !== 6 || !isLoaded) return;
 
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.verifyOtp({
-        email,
-        token: code,
-        type: "email",
+      const result = await signIn.attemptFirstFactor({
+        strategy: "email_code",
+        code,
       });
 
-      if (error) throw error;
+      if (result.status === "complete" && result.createdSessionId) {
+        await setActive({ session: result.createdSessionId });
+        await queryClient.invalidateQueries();
 
-      await queryClient.invalidateQueries();
+        toast({
+          title: "Access granted",
+          description: "Redirecting to admin dashboard...",
+        });
 
-      toast({
-        title: "Access granted",
-        description: "Redirecting to admin dashboard...",
-      });
-
-      setTimeout(() => {
-        onOpenChange(false);
-        resetState();
-        setLocation("/admin");
-      }, 500);
+        setTimeout(() => {
+          onOpenChange(false);
+          resetState();
+          setLocation("/admin");
+        }, 500);
+      }
     } catch (error: any) {
+      const msg = error?.errors?.[0]?.longMessage || error.message || "Please check your code and try again";
       toast({
         title: "Invalid code",
-        description: error.message || "Please check your code and try again",
+        description: msg,
         variant: "destructive",
       });
       setOtp("");

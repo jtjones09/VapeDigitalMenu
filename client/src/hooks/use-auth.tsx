@@ -1,55 +1,42 @@
-import * as React from "react";
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { supabase } from "../lib/supabase";
-import type { User, Session } from "@supabase/supabase-js";
+import { createContext, useContext, type ReactNode } from "react";
+import { useUser, useAuth as useClerkAuth, useClerk } from "@clerk/clerk-react";
 
 interface AuthContextType {
-  user: User | null;
-  session: Session | null;
+  user: { id: string; email?: string } | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   signOut: () => Promise<void>;
+  getToken: () => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { user: clerkUser, isLoaded: userLoaded } = useUser();
+  const { getToken, isLoaded: authLoaded } = useClerkAuth();
+  const { signOut: clerkSignOut } = useClerk();
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setIsLoading(false);
-    });
+  const isLoading = !userLoaded || !authLoaded;
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setIsLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+  const user = clerkUser
+    ? {
+        id: clerkUser.id,
+        email: clerkUser.primaryEmailAddress?.emailAddress,
+      }
+    : null;
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setSession(null);
+    await clerkSignOut();
   };
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        session,
         isLoading,
-        isAuthenticated: !!session,
+        isAuthenticated: !!clerkUser,
         signOut,
+        getToken,
       }}
     >
       {children}

@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { isAuthenticated, type AuthenticatedRequest } from "./auth/supabase";
+import { isAuthenticated, type AuthenticatedRequest } from "./auth/clerk";
 import { insertShopSchema, insertShopProductSchema, insertCustomerFavoriteSchema, customers, insertKioskSessionSchema, shops, shopOwners } from "@shared/schema";
 import { z } from "zod";
 import { db } from "./db";

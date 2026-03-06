@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation, Link } from "wouter";
-import { supabase } from "@/lib/supabase";
+import { useSignUp, useAuth } from "@clerk/clerk-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +26,8 @@ interface SignupData {
 export default function SignupPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { signUp, setActive, isLoaded } = useSignUp();
+  const { getToken } = useAuth();
   const [step, setStep] = useState<"form" | "verify">("form");
   const [isLoading, setIsLoading] = useState(false);
   const [otp, setOtp] = useState("");
@@ -67,16 +69,17 @@ export default function SignupPage() {
       return;
     }
 
+    if (!isLoaded) return;
+
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email: formData.email,
-        options: {
-          shouldCreateUser: true,
-        },
+      await signUp.create({
+        emailAddress: formData.email,
       });
 
-      if (error) throw error;
+      await signUp.prepareEmailAddressVerification({
+        strategy: "email_code",
+      });
 
       setStep("verify");
       toast({
@@ -84,9 +87,10 @@ export default function SignupPage() {
         description: "We've sent you a 6-digit verification code.",
       });
     } catch (error: any) {
+      const msg = error?.errors?.[0]?.longMessage || error.message || "Failed to send verification code";
       toast({
         title: "Error",
-        description: error.message || "Failed to send verification code",
+        description: msg,
         variant: "destructive",
       });
     } finally {
@@ -95,49 +99,48 @@ export default function SignupPage() {
   };
 
   const handleVerifyOTP = async (code: string) => {
-    if (code.length !== 6) return;
+    if (code.length !== 6 || !isLoaded) return;
 
     setIsLoading(true);
     try {
-      const { error: verifyError, data } = await supabase.auth.verifyOtp({
-        email: formData.email,
-        token: code,
-        type: "email",
+      const result = await signUp.attemptEmailAddressVerification({
+        code,
       });
 
-      if (verifyError) throw verifyError;
+      if (result.status === "complete" && result.createdSessionId) {
+        await setActive({ session: result.createdSessionId });
 
-      // Get the access token from the session
-      const accessToken = data.session?.access_token;
-      
-      if (!accessToken) {
-        throw new Error("Failed to get authentication token");
+        const token = await getToken();
+
+        if (!token) {
+          throw new Error("Failed to get authentication token");
+        }
+
+        const shopData = {
+          shopName: formData.shopName,
+          ownerName: formData.ownerName,
+          phone: formData.phone,
+          address: formData.address,
+          city: formData.city,
+          state: formData.state,
+          zip: formData.zip,
+        };
+
+        await apiRequest("POST", "/api/shops", shopData, token);
+        await queryClient.invalidateQueries();
+
+        toast({
+          title: "Welcome to MenuBoard!",
+          description: "Your account has been created successfully.",
+        });
+        
+        setTimeout(() => {
+          setLocation("/admin");
+        }, 100);
       }
-
-      // Now create the shop with the user's ID, passing the token directly
-      const shopData = {
-        shopName: formData.shopName,
-        ownerName: formData.ownerName,
-        phone: formData.phone,
-        address: formData.address,
-        city: formData.city,
-        state: formData.state,
-        zip: formData.zip,
-      };
-
-      await apiRequest("POST", "/api/shops", shopData, accessToken);
-      await queryClient.invalidateQueries();
-
-      toast({
-        title: "Welcome to MenuBoard!",
-        description: "Your account has been created successfully.",
-      });
-      
-      setTimeout(() => {
-        setLocation("/admin");
-      }, 100);
     } catch (error: any) {
-      if (error.message?.includes("Invalid") || error.message?.includes("token")) {
+      const msg = error?.errors?.[0]?.longMessage || error.message || "Something went wrong";
+      if (msg.includes("Invalid") || msg.includes("code")) {
         toast({
           title: "Invalid code",
           description: "Please check your code and try again",
@@ -147,7 +150,7 @@ export default function SignupPage() {
       } else {
         toast({
           title: "Error",
-          description: error.message || "Something went wrong",
+          description: msg,
           variant: "destructive",
         });
       }
@@ -164,25 +167,22 @@ export default function SignupPage() {
   };
 
   const handleResendCode = async () => {
+    if (!isLoaded) return;
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email: formData.email,
-        options: {
-          shouldCreateUser: true,
-        },
+      await signUp.prepareEmailAddressVerification({
+        strategy: "email_code",
       });
-
-      if (error) throw error;
 
       toast({
         title: "Code resent",
         description: "Check your email for a new verification code.",
       });
     } catch (error: any) {
+      const msg = error?.errors?.[0]?.longMessage || error.message || "Failed to resend code";
       toast({
         title: "Error",
-        description: error.message || "Failed to resend code",
+        description: msg,
         variant: "destructive",
       });
     } finally {

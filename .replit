@@ -47,3 +47,9 @@ integrations = ["javascript_log_in_with_replit:2.0.0", "javascript_database:1.0.
 
 [objectStorage]
 defaultBucketID = "replit-objstore-31189a12-3834-427c-940a-19dfa7013949"
+
+[userenv]
+
+[userenv.shared]
+VITE_CLERK_PUBLISHABLE_KEY = "pk_test_Z3JhdGVmdWwtY291Z2FyLTE3LmNsZXJrLmFjY291bnRzLmRldiQ"
+CLERK_SECRET_KEY = "sk_test_QzEiSeX2PTyp9Tk2BnecWtZGuGbtsChmyRzV9H4XFV"

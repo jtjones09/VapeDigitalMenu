@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation, useSearch, Link } from "wouter";
-import { supabase } from "@/lib/supabase";
+import { useSignIn, useSignUp, useAuth } from "@clerk/clerk-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,8 +24,10 @@ export default function CustomerLoginPage() {
   const searchParams = useSearch();
   const redirectUrl = new URLSearchParams(searchParams).get("redirect") || "/";
   const { toast } = useToast();
+  const { signIn, setActive: setSignInActive, isLoaded: signInLoaded } = useSignIn();
+  const { signUp, setActive: setSignUpActive, isLoaded: signUpLoaded } = useSignUp();
+  const { getToken } = useAuth();
   
-  // Flow: email -> (if new user: signup form -> verify) or (if existing: verify)
   const [step, setStep] = useState<"email" | "signup" | "verify">("email");
   const [isNewUser, setIsNewUser] = useState(false);
   const [email, setEmail] = useState("");
@@ -44,7 +46,6 @@ export default function CustomerLoginPage() {
     setFormData(prev => ({ ...prev, [field]: e.target.value }));
   };
 
-  // Step 1: Check if email exists
   const handleCheckEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) return;
@@ -64,12 +65,10 @@ export default function CustomerLoginPage() {
       const { exists } = await response.json();
 
       if (exists) {
-        // Existing user - send OTP directly
         setIsNewUser(false);
-        await sendOTP(email);
+        await sendSignInOTP(email);
         setStep("verify");
       } else {
-        // New user - show signup form
         setIsNewUser(true);
         setFormData(prev => ({ ...prev, email }));
         setStep("signup");
@@ -85,15 +84,25 @@ export default function CustomerLoginPage() {
     }
   };
 
-  const sendOTP = async (emailAddress: string) => {
-    const { error } = await supabase.auth.signInWithOtp({
-      email: emailAddress,
-      options: {
-        shouldCreateUser: true,
-      },
+  const sendSignInOTP = async (emailAddress: string) => {
+    if (!signInLoaded) throw new Error("Auth not ready");
+
+    const result = await signIn.create({
+      identifier: emailAddress,
     });
 
-    if (error) throw error;
+    const emailFactor = result.supportedFirstFactors?.find(
+      (f: any) => f.strategy === "email_code"
+    );
+
+    if (!emailFactor || !("emailAddressId" in emailFactor)) {
+      throw new Error("Email code verification not available");
+    }
+
+    await signIn.prepareFirstFactor({
+      strategy: "email_code",
+      emailAddressId: emailFactor.emailAddressId,
+    });
 
     toast({
       title: "Check your email",
@@ -101,7 +110,23 @@ export default function CustomerLoginPage() {
     });
   };
 
-  // Step 2 (new users): Submit signup form and send OTP
+  const sendSignUpOTP = async (emailAddress: string) => {
+    if (!signUpLoaded) throw new Error("Auth not ready");
+
+    await signUp.create({
+      emailAddress,
+    });
+
+    await signUp.prepareEmailAddressVerification({
+      strategy: "email_code",
+    });
+
+    toast({
+      title: "Check your email",
+      description: "We've sent you a 6-digit verification code.",
+    });
+  };
+
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -135,13 +160,13 @@ export default function CustomerLoginPage() {
 
     setIsLoading(true);
     try {
-      // Store form data and send OTP
-      await sendOTP(formData.email);
+      await sendSignUpOTP(formData.email);
       setStep("verify");
     } catch (error: any) {
+      const msg = error?.errors?.[0]?.longMessage || error.message || "Failed to send verification code";
       toast({
         title: "Error",
-        description: error.message || "Failed to send verification code",
+        description: msg,
         variant: "destructive",
       });
     } finally {
@@ -164,54 +189,68 @@ export default function CustomerLoginPage() {
     return age;
   };
 
-  // Step 3: Verify OTP
   const handleVerifyOTP = async (code: string) => {
     if (code.length !== 6) return;
 
     setIsLoading(true);
     try {
-      const verifyEmail = isNewUser ? formData.email : email;
-      
-      const { error: verifyError, data } = await supabase.auth.verifyOtp({
-        email: verifyEmail,
-        token: code,
-        type: "email",
-      });
+      let authComplete = false;
 
-      if (verifyError) throw verifyError;
-
-      const token = data.session?.access_token;
-      if (!token) {
-        throw new Error("Failed to get authentication token");
-      }
-
-      // For new users, create their profile
       if (isNewUser) {
-        await apiRequest("POST", "/api/customers/verify-age", {
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          dateOfBirth: formData.dateOfBirth,
-        }, token);
+        if (!signUpLoaded) throw new Error("Auth not ready");
+        
+        const result = await signUp.attemptEmailAddressVerification({ code });
+        
+        if (result.status === "complete" && result.createdSessionId) {
+          await setSignUpActive({ session: result.createdSessionId });
+          
+          const token = await getToken();
+          if (!token) throw new Error("Failed to get authentication token");
 
-        toast({
-          title: "Welcome!",
-          description: "Your account has been created successfully.",
-        });
+          await apiRequest("POST", "/api/customers/verify-age", {
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+            dateOfBirth: formData.dateOfBirth,
+          }, token);
+
+          toast({
+            title: "Welcome!",
+            description: "Your account has been created successfully.",
+          });
+          authComplete = true;
+        }
       } else {
-        toast({
-          title: "Welcome back!",
-          description: "You've successfully signed in.",
+        if (!signInLoaded) throw new Error("Auth not ready");
+
+        const result = await signIn.attemptFirstFactor({
+          strategy: "email_code",
+          code,
         });
+
+        if (result.status === "complete" && result.createdSessionId) {
+          await setSignInActive({ session: result.createdSessionId });
+
+          toast({
+            title: "Welcome back!",
+            description: "You've successfully signed in.",
+          });
+          authComplete = true;
+        }
       }
 
-      await queryClient.invalidateQueries();
-      setTimeout(() => {
-        setLocation(redirectUrl);
-      }, 100);
+      if (authComplete) {
+        await queryClient.invalidateQueries();
+        setTimeout(() => {
+          setLocation(redirectUrl);
+        }, 100);
+      } else {
+        setIsLoading(false);
+      }
     } catch (error: any) {
+      const msg = error?.errors?.[0]?.longMessage || error.message || "Please check your code and try again";
       toast({
         title: "Invalid code",
-        description: error.message || "Please check your code and try again",
+        description: msg,
         variant: "destructive",
       });
       setOtp("");

@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
-import { isAuthenticated } from "../../auth/supabase";
+import { isAuthenticated } from "../../auth/clerk";
 
 /**
  * Register object storage routes for file uploads.

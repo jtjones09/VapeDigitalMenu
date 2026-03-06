@@ -1,11 +1,13 @@
 import { Switch, Route } from "wouter";
-import { queryClient, getAuthHeaders } from "./lib/queryClient";
+import { queryClient, getAuthHeaders, setAuthTokenGetter } from "./lib/queryClient";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ClerkProvider, useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { InstallPrompt } from "@/components/install-prompt";
 import { ShopProvider } from "@/contexts/shop-context";
+import { useEffect } from "react";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import LoginPage from "@/pages/auth/login";
@@ -21,6 +23,18 @@ import Settings from "@/pages/admin/settings";
 import CreateShop from "@/pages/admin/create-shop";
 import Menu from "@/pages/menu/index";
 import type { Shop } from "@shared/schema";
+
+const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+
+function AuthTokenSync() {
+  const { getToken } = useClerkAuth();
+
+  useEffect(() => {
+    setAuthTokenGetter(getToken);
+  }, [getToken]);
+
+  return null;
+}
 
 function AdminRoutes() {
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
@@ -104,15 +118,18 @@ function Router() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <InstallPrompt />
-          <Router />
-        </TooltipProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY}>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <AuthTokenSync />
+          <TooltipProvider>
+            <Toaster />
+            <InstallPrompt />
+            <Router />
+          </TooltipProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ClerkProvider>
   );
 }
 

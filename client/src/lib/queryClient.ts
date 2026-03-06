@@ -1,10 +1,17 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
-import { supabase } from "./supabase";
+
+let getTokenFn: (() => Promise<string | null>) | null = null;
+
+export function setAuthTokenGetter(fn: () => Promise<string | null>) {
+  getTokenFn = fn;
+}
 
 export async function getAuthHeaders(): Promise<Record<string, string>> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session?.access_token) {
-    return { Authorization: `Bearer ${session.access_token}` };
+  if (getTokenFn) {
+    const token = await getTokenFn();
+    if (token) {
+      return { Authorization: `Bearer ${token}` };
+    }
   }
   return {};
 }
@@ -23,13 +30,13 @@ export async function apiRequest(
   accessToken?: string,
 ): Promise<Response> {
   let authHeaders: Record<string, string> = {};
-  
+
   if (accessToken) {
     authHeaders = { Authorization: `Bearer ${accessToken}` };
   } else {
     authHeaders = await getAuthHeaders();
   }
-  
+
   const res = await fetch(url, {
     method,
     headers: {
