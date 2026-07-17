@@ -107,13 +107,21 @@ export default function SignupPage() {
         code,
       });
 
-      if (result.status === "complete" && result.createdSessionId) {
-        await setActive({ session: result.createdSessionId });
+      if (result.status === "complete") {
+        if (result.createdSessionId) {
+          await setActive({ session: result.createdSessionId });
+        }
 
-        const token = await getToken();
+        // Retry getting token a few times since session propagation can be async
+        let token: string | null = null;
+        for (let i = 0; i < 5; i++) {
+          token = await getToken();
+          if (token) break;
+          await new Promise((r) => setTimeout(r, 300));
+        }
 
         if (!token) {
-          throw new Error("Failed to get authentication token");
+          throw new Error("Session ready but could not get auth token. Please try logging in.");
         }
 
         const shopData = {
@@ -140,20 +148,13 @@ export default function SignupPage() {
       }
     } catch (error: any) {
       const msg = error?.errors?.[0]?.longMessage || error.message || "Something went wrong";
-      if (msg.includes("Invalid") || msg.includes("code")) {
-        toast({
-          title: "Invalid code",
-          description: "Please check your code and try again",
-          variant: "destructive",
-        });
-        setOtp("");
-      } else {
-        toast({
-          title: "Error",
-          description: msg,
-          variant: "destructive",
-        });
-      }
+      const isCodeError = msg.toLowerCase().includes("invalid") || msg.toLowerCase().includes("incorrect") || msg.toLowerCase().includes("verification");
+      toast({
+        title: isCodeError ? "Invalid code" : "Error",
+        description: isCodeError ? "Please check your code and try again" : msg,
+        variant: "destructive",
+      });
+      if (isCodeError) setOtp("");
     } finally {
       setIsLoading(false);
     }
