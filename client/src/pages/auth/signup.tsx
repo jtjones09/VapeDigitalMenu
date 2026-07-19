@@ -13,7 +13,8 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 
 interface SignupData {
   email: string;
-  ownerName: string;
+  firstName: string;
+  lastName: string;
   shopName: string;
   phone: string;
   address: string;
@@ -34,7 +35,8 @@ export default function SignupPage() {
   
   const [formData, setFormData] = useState<SignupData>({
     email: "",
-    ownerName: "",
+    firstName: "",
+    lastName: "",
     shopName: "",
     phone: "",
     address: "",
@@ -51,7 +53,7 @@ export default function SignupPage() {
   const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.email || !formData.ownerName || !formData.shopName) {
+    if (!formData.email || !formData.firstName || !formData.shopName) {
       toast({
         title: "Missing information",
         description: "Please fill in all required fields.",
@@ -75,8 +77,8 @@ export default function SignupPage() {
     try {
       await signUp.create({
         emailAddress: formData.email,
-        firstName: formData.ownerName.split(" ")[0],
-        lastName: formData.ownerName.split(" ").slice(1).join(" ") || "-",
+        firstName: formData.firstName,
+        lastName: formData.lastName || "-",
       });
 
       await signUp.prepareEmailAddressVerification({
@@ -118,7 +120,7 @@ export default function SignupPage() {
         // with a fresh Clerk session (avoids getToken() race condition after setActive)
         localStorage.setItem("pendingShopCreation", JSON.stringify({
           shopName: formData.shopName,
-          ownerName: formData.ownerName,
+          ownerName: `${formData.firstName} ${formData.lastName}`.trim(),
           phone: formData.phone,
           address: formData.address,
           city: formData.city,
@@ -215,18 +217,32 @@ export default function SignupPage() {
                 />
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="ownerName">Your name *</Label>
-                <Input
-                  id="ownerName"
-                  type="text"
-                  placeholder="John Smith"
-                  value={formData.ownerName}
-                  onChange={handleInputChange("ownerName")}
-                  disabled={isLoading}
-                  required
-                  data-testid="input-owner-name"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="firstName">First name *</Label>
+                  <Input
+                    id="firstName"
+                    type="text"
+                    placeholder="John"
+                    value={formData.firstName}
+                    onChange={handleInputChange("firstName")}
+                    disabled={isLoading}
+                    required
+                    data-testid="input-first-name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lastName">Last name</Label>
+                  <Input
+                    id="lastName"
+                    type="text"
+                    placeholder="Smith"
+                    value={formData.lastName}
+                    onChange={handleInputChange("lastName")}
+                    disabled={isLoading}
+                    data-testid="input-last-name"
+                  />
+                </div>
               </div>
               
               <div className="space-y-2">
