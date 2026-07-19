@@ -75,6 +75,8 @@ export default function SignupPage() {
     try {
       await signUp.create({
         emailAddress: formData.email,
+        firstName: formData.ownerName.split(" ")[0],
+        lastName: formData.ownerName.split(" ").slice(1).join(" ") || "-",
       });
 
       await signUp.prepareEmailAddressVerification({
