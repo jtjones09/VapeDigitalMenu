@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -35,16 +36,20 @@ export default function Onboarding() {
     setLocation("/");
   };
 
+  // Check for shop data saved during signup flow
+  const pendingRaw = localStorage.getItem("pendingShopCreation");
+  const pendingShop = pendingRaw ? JSON.parse(pendingRaw) : null;
+
   const form = useForm<OnboardingFormValues>({
     resolver: zodResolver(onboardingSchema),
     defaultValues: {
-      shopName: "",
-      ownerName: "",
-      phone: "",
-      address: "",
-      city: "",
-      state: "",
-      zip: "",
+      shopName: pendingShop?.shopName ?? "",
+      ownerName: pendingShop?.ownerName ?? "",
+      phone: pendingShop?.phone ?? "",
+      address: pendingShop?.address ?? "",
+      city: pendingShop?.city ?? "",
+      state: pendingShop?.state ?? "",
+      zip: pendingShop?.zip ?? "",
     },
   });
 
@@ -54,6 +59,7 @@ export default function Onboarding() {
       return response;
     },
     onSuccess: () => {
+      localStorage.removeItem("pendingShopCreation");
       queryClient.invalidateQueries({ queryKey: ["/api/shops/my"] });
       toast({
         title: "Shop created!",
@@ -62,6 +68,7 @@ export default function Onboarding() {
       setLocation("/admin/products");
     },
     onError: (error: Error) => {
+      localStorage.removeItem("pendingShopCreation");
       toast({
         title: "Error",
         description: error.message || "Failed to create shop",
@@ -70,9 +77,28 @@ export default function Onboarding() {
     },
   });
 
+  // Auto-submit if shop data was saved during signup flow
+  useEffect(() => {
+    if (pendingShop && !createShopMutation.isPending) {
+      createShopMutation.mutate(pendingShop);
+    }
+  }, []);
+
   const onSubmit = (data: OnboardingFormValues) => {
     createShopMutation.mutate(data);
   };
+
+  // Show spinner while auto-creating shop from signup flow
+  if (pendingShop && createShopMutation.isPending) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-primary" />
+          <p className="text-muted-foreground">Setting up your shop...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6">

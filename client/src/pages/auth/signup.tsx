@@ -112,19 +112,9 @@ export default function SignupPage() {
           await setActive({ session: result.createdSessionId });
         }
 
-        // Retry getting token a few times since session propagation can be async
-        let token: string | null = null;
-        for (let i = 0; i < 5; i++) {
-          token = await getToken();
-          if (token) break;
-          await new Promise((r) => setTimeout(r, 300));
-        }
-
-        if (!token) {
-          throw new Error("Session ready but could not get auth token. Please try logging in.");
-        }
-
-        const shopData = {
+        // Store shop data so Onboarding page can auto-create it after the page reloads
+        // with a fresh Clerk session (avoids getToken() race condition after setActive)
+        localStorage.setItem("pendingShopCreation", JSON.stringify({
           shopName: formData.shopName,
           ownerName: formData.ownerName,
           phone: formData.phone,
@@ -132,25 +122,18 @@ export default function SignupPage() {
           city: formData.city,
           state: formData.state,
           zip: formData.zip,
-        };
+        }));
 
-        await apiRequest("POST", "/api/shops", shopData, token);
-        await queryClient.invalidateQueries();
-
-        toast({
-          title: "Welcome to MenuBoard!",
-          description: "Your account has been created successfully.",
-        });
-        
-        setTimeout(() => {
-          setLocation("/admin");
-        }, 100);
+        // Hard redirect so the browser picks up Clerk's session cookie fresh
+        window.location.href = "/admin";
+      } else {
+        throw new Error(`Verification incomplete (status: ${result.status}). Please try again or resend the code.`);
       }
     } catch (error: any) {
       const msg = error?.errors?.[0]?.longMessage || error.message || "Something went wrong";
-      const isCodeError = msg.toLowerCase().includes("invalid") || msg.toLowerCase().includes("incorrect") || msg.toLowerCase().includes("verification");
+      const isCodeError = msg.toLowerCase().includes("invalid") || msg.toLowerCase().includes("incorrect");
       toast({
-        title: isCodeError ? "Invalid code" : "Error",
+        title: isCodeError ? "Invalid code" : "Verification error",
         description: isCodeError ? "Please check your code and try again" : msg,
         variant: "destructive",
       });
