@@ -38,7 +38,7 @@ import { ShopSelector } from "@/components/shop-selector";
 
 const navItems = [
   { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
-  { title: "Global Catalogue", url: "/admin/products", icon: Package },
+  { title: "Global Catalog", url: "/admin/products", icon: Package },
   { title: "My Products", url: "/admin/custom-products", icon: PackagePlus },
   { title: "My Menu", url: "/admin/my-menu", icon: List },
   { title: "Setup", url: "/admin/setup", icon: Smartphone },

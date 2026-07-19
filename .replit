@@ -53,3 +53,7 @@ defaultBucketID = "replit-objstore-31189a12-3834-427c-940a-19dfa7013949"
 [userenv.shared]
 VITE_CLERK_PUBLISHABLE_KEY = "pk_test_Z3JhdGVmdWwtY291Z2FyLTE3LmNsZXJrLmFjY291bnRzLmRldiQ"
 CLERK_SECRET_KEY = "sk_test_QzEiSeX2PTyp9Tk2BnecWtZGuGbtsChmyRzV9H4XFV"
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 20000
