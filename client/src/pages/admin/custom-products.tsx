@@ -36,9 +36,10 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Search, Plus, Package, Filter, Pencil, Trash2, Upload, ImageIcon, X, Camera } from "lucide-react";
+import { Search, Plus, Package, Filter, Pencil, Trash2, Upload, ImageIcon, X, Camera, FileUp } from "lucide-react";
 import { useShop } from "@/contexts/shop-context";
 import { ProductMatchesPanel } from "@/components/admin/product-matches-panel";
+import { BulkImportDialog } from "@/components/admin/bulk-import-dialog";
 import { insertProductSchema, type ProductWithBrand } from "@shared/schema";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -458,6 +459,8 @@ export default function CustomProducts() {
     msrp: "",
     cost: "",
   });
+
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
 
   const { currentShop: shop } = useShop();
 
@@ -894,6 +897,12 @@ export default function CustomProducts() {
               Create and manage your own products
             </p>
           </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setImportDialogOpen(true)} data-testid="button-open-import">
+              <FileUp className="w-4 h-4 mr-2" />
+              Import from File
+            </Button>
+
           <Dialog open={createDialogOpen} onOpenChange={(open) => {
             setCreateDialogOpen(open);
             if (!open) {
@@ -1048,6 +1057,9 @@ export default function CustomProducts() {
               </Form>
             </DialogContent>
           </Dialog>
+          </div>
+
+          <BulkImportDialog open={importDialogOpen} onOpenChange={setImportDialogOpen} />
 
           <Dialog open={!!viewProductId} onOpenChange={(open) => {
             if (!open) {

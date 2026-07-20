@@ -7,6 +7,8 @@ import { z } from "zod";
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
+import multer from "multer";
+import * as XLSX from "xlsx";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -535,6 +537,158 @@ export async function registerRoutes(
       res.status(500).json({ message: "Failed to reorder products" });
     }
   });
+
+  // ============ BULK IMPORT ============
+
+  const importUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      const ext = file.originalname.toLowerCase().split(".").pop();
+      if (ext === "csv" || ext === "xlsx" || ext === "xls") {
+        cb(null, true);
+      } else {
+        cb(new Error("Only CSV and Excel files are accepted"));
+      }
+    },
+  });
+
+  function normalizeColName(name: string): string {
+    return name.toLowerCase().replace(/[\s\-_]+/g, "");
+  }
+
+  interface ImportFileRow {
+    productName: string;
+    brandName: string;
+    productType: string;
+    flavorCategory: string;
+    flavorDescription: string;
+    nicotineType: string;
+    nicotineLevel: string;
+    vgPgRatio: string;
+    bottleSize: string;
+    sku: string;
+    msrp: string;
+    cost: string;
+  }
+
+  function mapRowToImport(row: Record<string, unknown>): ImportFileRow {
+    const normalized: Record<string, string> = {};
+    for (const [key, val] of Object.entries(row)) {
+      normalized[normalizeColName(key)] = String(val ?? "").trim();
+    }
+    const get = (...keys: string[]) =>
+      keys.map((k) => normalized[k] || "").find((v) => v) || "";
+    return {
+      productName: get("productname", "product", "name", "itemname"),
+      brandName: get("brandname", "brand", "manufacturer"),
+      productType: get("producttype", "type", "category"),
+      flavorCategory: get("flavorcategory", "flavor", "flavorcat"),
+      flavorDescription: get("flavordescription", "description", "desc", "notes"),
+      nicotineType: get("nicotinetype"),
+      nicotineLevel: get("nicotinelevel", "nicotine", "nic", "mg"),
+      vgPgRatio: get("vgpgratio", "vgpg", "ratio", "vg"),
+      bottleSize: get("bottlesize", "size", "volume"),
+      sku: get("sku", "itemcode", "code", "barcode"),
+      msrp: get("msrp", "price", "retail", "retailprice", "sellingprice"),
+      cost: get("cost", "wholesale", "purchaseprice", "buyprice"),
+    };
+  }
+
+  app.post(
+    "/api/shops/:shopId/import",
+    isAuthenticated,
+    importUpload.single("file"),
+    async (req: AuthenticatedRequest, res) => {
+      try {
+        const shopOwnerId = req.userId!;
+        const { shopId } = req.params;
+
+        if (!(await verifyShopOwnership(shopId, shopOwnerId))) {
+          return res.status(403).json({ message: "Not authorized to access this shop" });
+        }
+
+        if (!req.file) {
+          return res.status(400).json({ message: "No file uploaded" });
+        }
+
+        const filename = req.file.originalname.toLowerCase();
+        const isCSV = filename.endsWith(".csv");
+
+        let rawRows: Record<string, unknown>[];
+        try {
+          const workbook = isCSV
+            ? XLSX.read(req.file.buffer.toString("utf8"), { type: "string" })
+            : XLSX.read(req.file.buffer, { type: "buffer" });
+          const sheet = workbook.Sheets[workbook.SheetNames[0]];
+          rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+            defval: "",
+            raw: false,
+          });
+        } catch {
+          return res.status(400).json({ message: "Could not parse file. Make sure it is a valid CSV or Excel file." });
+        }
+
+        if (rawRows.length === 0) {
+          return res.status(400).json({ message: "File appears to be empty or has no data rows." });
+        }
+
+        if (rawRows.length > 500) {
+          return res.status(400).json({ message: "File has too many rows. Maximum is 500 per import." });
+        }
+
+        const fileRows = rawRows.map(mapRowToImport).filter((r) => r.productName.length > 0);
+
+        if (fileRows.length === 0) {
+          return res.status(400).json({
+            message: "No valid product name column found. Make sure your file has a 'product_name' or 'name' column.",
+          });
+        }
+
+        const matched: Array<{ rowIndex: number; fileRow: ImportFileRow; match: object }> = [];
+        const partial: Array<{ rowIndex: number; fileRow: ImportFileRow; suggestions: object[] }> = [];
+        const unmatched: Array<{ rowIndex: number; fileRow: ImportFileRow }> = [];
+
+        for (let i = 0; i < fileRows.length; i++) {
+          const row = fileRows[i];
+          if (row.productName.length < 2) {
+            unmatched.push({ rowIndex: i, fileRow: row });
+            continue;
+          }
+
+          const matches = await storage.searchDuplicateProducts({
+            productName: row.productName,
+            brandName: row.brandName || undefined,
+            shopId,
+          });
+
+          if (matches.length === 0) {
+            unmatched.push({ rowIndex: i, fileRow: row });
+          } else if (matches[0].similarity >= 0.65) {
+            matched.push({ rowIndex: i, fileRow: row, match: matches[0] });
+          } else if (matches[0].similarity >= 0.35) {
+            partial.push({
+              rowIndex: i,
+              fileRow: row,
+              suggestions: matches.slice(0, 3),
+            });
+          } else {
+            unmatched.push({ rowIndex: i, fileRow: row });
+          }
+        }
+
+        res.json({
+          totalRows: fileRows.length,
+          matched,
+          partial,
+          unmatched,
+        });
+      } catch (error) {
+        console.error("Import error:", error);
+        res.status(500).json({ message: "Failed to process import file" });
+      }
+    }
+  );
 
   // ============ PRODUCT VARIANTS ============
 
