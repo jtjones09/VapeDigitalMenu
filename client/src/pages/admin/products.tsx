@@ -17,7 +17,8 @@ import {
 } from "@/components/ui/select";
 import { Search, Plus, Check, Package, Filter } from "lucide-react";
 import { useShop } from "@/contexts/shop-context";
-import type { Product, ProductWithBrand, Shop, ShopProduct } from "@shared/schema";
+import { ProductDetailSheet } from "@/components/admin/product-detail-sheet";
+import type { ProductWithBrand, ShopProduct } from "@shared/schema";
 
 const productTypes = ["all", "e-liquid", "disposable", "hardware", "accessory"];
 const flavorCategories = ["all", "fruit", "dessert", "menthol", "tobacco", "beverage", "candy", "other"];
@@ -28,6 +29,7 @@ export default function Products() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [flavorFilter, setFlavorFilter] = useState("all");
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
 
   const { currentShop: shop } = useShop();
 
@@ -100,6 +102,8 @@ export default function Products() {
     candy: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
     other: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300",
   };
+
+  const isPending = addToMenuMutation.isPending || removeFromMenuMutation.isPending;
 
   return (
     <AdminLayout>
@@ -179,7 +183,12 @@ export default function Products() {
             {products?.map((product) => {
               const inMenu = myProductIds.has(product.id);
               return (
-                <Card key={product.id} className="overflow-hidden hover-elevate" data-testid={`card-product-${product.id}`}>
+                <Card
+                  key={product.id}
+                  className="overflow-hidden hover-elevate cursor-pointer"
+                  onClick={() => setSelectedProductId(product.id)}
+                  data-testid={`card-product-${product.id}`}
+                >
                   <div className="aspect-square bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center relative">
                     {product.imageUrl ? (
                       <img
@@ -197,6 +206,11 @@ export default function Products() {
                       >
                         {product.flavorCategory}
                       </Badge>
+                    )}
+                    {inMenu && (
+                      <div className="absolute top-3 right-3 bg-background/90 rounded-full p-1">
+                        <Check className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+                      </div>
                     )}
                   </div>
                   <CardContent className="p-4 space-y-3">
@@ -216,14 +230,15 @@ export default function Products() {
                     <Button
                       variant={inMenu ? "secondary" : "default"}
                       className="w-full"
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         if (inMenu) {
                           removeFromMenuMutation.mutate(product.id);
                         } else {
                           addToMenuMutation.mutate(product.id);
                         }
                       }}
-                      disabled={addToMenuMutation.isPending || removeFromMenuMutation.isPending}
+                      disabled={isPending}
                       data-testid={`button-toggle-${product.id}`}
                     >
                       {inMenu ? (
@@ -245,6 +260,15 @@ export default function Products() {
           </div>
         )}
       </div>
+
+      <ProductDetailSheet
+        productId={selectedProductId}
+        isInMenu={selectedProductId ? myProductIds.has(selectedProductId) : false}
+        isPending={isPending}
+        onAddToMenu={(id) => addToMenuMutation.mutate(id)}
+        onRemoveFromMenu={(id) => removeFromMenuMutation.mutate(id)}
+        onClose={() => setSelectedProductId(null)}
+      />
     </AdminLayout>
   );
 }
